@@ -7,7 +7,7 @@ const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
 export const VERSION = 1;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '2.3';
+export const APP_VERSION = '2.4';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -24,7 +24,11 @@ export const defaults = () => ({
   // expenses en cuotas comparten groupId y llevan cuota: [i, n]
   // budgets['Categoría'] = tope mensual de gasto
   finance: { income: {}, expenses: [], fixed: [], budgets: {} }, // income['YYYY-MM'] = sueldo líquido
-  savings: [], // { id, date, type: 'in' | 'out', amount, note, ym? }
+  // Cuentas de ahorro: { id, name, kind, rate? (% anual) }
+  savingsAccounts: [{ id: 'general', name: 'Ahorro general', kind: 'cuenta' }],
+  // type: 'in' aporte | 'out' retiro | 'int' interés o rentabilidad (amount con signo: + ganancia, − pérdida)
+  //       | 'move' traspaso de acc a to (no cuenta como aporte ni retiro)
+  savings: [], // { id, date, type, amount, note, acc, to?, ym? }
   savingsGoal: 0,
 });
 
@@ -43,6 +47,10 @@ export function withDefaults(data) {
   for (const k of ['expenses', 'fixed']) if (!Array.isArray(out.finance[k])) out.finance[k] = [];
   for (const k of ['log', 'water']) if (!out[k] || typeof out[k] !== 'object') out[k] = {};
   if (!out.finance.budgets || typeof out.finance.budgets !== 'object') out.finance.budgets = {};
+  // Ahorro por cuentas (v2.4): los movimientos antiguos quedan en "Ahorro general".
+  if (!Array.isArray(out.savingsAccounts) || !out.savingsAccounts.length) out.savingsAccounts = base.savingsAccounts;
+  const firstAcc = out.savingsAccounts[0].id;
+  for (const m of out.savings) if (!m.acc || !out.savingsAccounts.some((a) => a.id === m.acc)) m.acc = firstAcc;
   out.app = base.app;
   out.v = VERSION;
   return out;

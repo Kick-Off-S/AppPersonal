@@ -128,8 +128,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Elige tus módulos:</b> en Ajustes puedes dejar solo Dieta y salud, solo Finanzas, o ambos. Lo que ocultes no se borra.</li>
-      <li>De la 2.2: tamaños S / M / L / XL, más alimentos y Manual con gramos.</li>
+      <li><b>Ahorro por cuentas:</b> separa tu ahorro en cuentas (cuenta de ahorro, depósito a plazo, fondo mutuo, APV…). Lo que tenías quedó en "Ahorro general".</li>
+      <li><b>Intereses y ganancias:</b> regístralos aparte, sin que cuenten como aporte de tu sueldo. Con la tasa anual te mostramos el interés estimado del mes.</li>
+      <li><b>Actualizar saldo:</b> para fondos que suben y bajan, escribe el saldo real y la diferencia queda como ganancia o pérdida.</li>
+      <li><b>Mover entre cuentas</b> sin afectar tu ahorro total.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

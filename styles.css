@@ -261,3 +261,9 @@ input.switch::after {
 input.switch:checked { background: var(--primary); }
 input.switch:checked::after { transform: translateX(20px); }
 input.switch:focus { outline: none; }
+
+/* ---- ahorro por cuentas ---- */
+.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 4px; }
+.acts > button { padding: 0 8px; }
+.amount.int { color: var(--primary); }
+#sign { margin-top: 12px; }

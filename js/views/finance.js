@@ -329,15 +329,21 @@ function toSavingsSheet() {
   const { avail } = summary(ym);
   openSheet(
     `<h3>Enviar a ahorro</h3><p class="muted small">Se registra como aporte en el módulo Ahorro y descuenta de lo disponible de ${monthLabel(ym)}.</p>
-    <form id="f"><label class="field">Monto (disponible: ${money(avail)})<input name="v" inputmode="numeric" required value="${Math.max(0, avail)}"></label>
+    <form id="f">${
+      state.savingsAccounts.length > 1
+        ? `<label class="field">Cuenta<select name="acc">${state.savingsAccounts.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>`
+        : ''
+    }<label class="field">Monto (disponible: ${money(avail)})<input name="v" inputmode="numeric" required value="${Math.max(0, avail)}"></label>
     <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button class="primary">Enviar</button></div></form>`,
     (sheet, close) =>
       sheet.querySelector('#f').addEventListener('submit', (ev) => {
         ev.preventDefault();
-        const v = parseMoney(new FormData(ev.target).get('v'));
+        const fd = new FormData(ev.target);
+        const v = parseMoney(fd.get('v'));
+        const acc = fd.get('acc') || state.savingsAccounts[0].id;
         if (!v) return;
         if (v > avail && !confirm('Es más de lo que te queda disponible este mes. ¿Enviar igual?')) return;
-        state.savings.push({ id: uid(), date: todayStr(), type: 'in', amount: v, note: `Sobrante ${monthLabel(ym)}`, ym });
+        state.savings.push({ id: uid(), date: todayStr(), type: 'in', amount: v, note: `Sobrante ${monthLabel(ym)}`, ym, acc });
         save();
         close();
         toast('Enviado a ahorro');
