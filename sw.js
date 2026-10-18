@@ -1,16 +1,16 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v11';
+const VERSION = 'gp-v12';
 const SHELL = [
   './',
   'index.html',
   'styles.css',
   'manifest.webmanifest',
-  'icons/icon.svg',
-  'icons/icon-192.png',
-  'icons/icon-512.png',
-  'icons/apple-touch-icon.png',
-  'icons/icon-maskable-512.png',
+  'icons/icon-v2.svg',
+  'icons/icon-v2-192.png',
+  'icons/icon-v2-512.png',
+  'icons/apple-touch-icon-v2.png',
+  'icons/icon-v2-maskable-512.png',
   'js/app.js',
   'js/store.js',
   'js/util.js',

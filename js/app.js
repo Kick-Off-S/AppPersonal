@@ -149,6 +149,10 @@ function welcome() {
   return true;
 }
 
+function isIOSDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 // ---------- novedades (una vez por versión, solo a quien ya usaba la app) ----------
 function whatsNew() {
   if (state.settings.seenVersion === APP_VERSION) return;
@@ -158,17 +162,20 @@ function whatsNew() {
   if (!returning) return;
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
-    <p class="muted small" style="margin-top:0">Tres módulos nuevos. Déjalos activos o apágalos; puedes cambiarlo cuando quieras en Ajustes.</p>
+    <div class="row" style="gap:14px;margin:6px 0 4px"><img src="icons/icon-v2-192.png" alt="" width="64" height="64" style="border-radius:16px">
+      <div><b>Logo nuevo</b><div class="small muted">Representa los módulos: dieta, finanzas, ejercicio y hábitos.</div></div></div>
+    ${
+      isIOSDevice()
+        ? `<div class="banner small">En iPhone el ícono de la pantalla de inicio no cambia solo. Si quieres verlo: <b>1)</b> Ajustes → Guardar respaldo, <b>2)</b> borra el ícono y vuelve a <b>Agregar a inicio</b> desde Safari, <b>3)</b> Ajustes → Restaurar. Es opcional: la app funciona igual con el ícono antiguo.</div>`
+        : '<div class="small muted">En Android el ícono se actualiza solo en los próximos días.</div>'
+    }
+    <p class="muted small" style="margin:12px 0 0">También: formularios de rutinas ordenados. Y si no lo viste en la 3.0, hay tres módulos nuevos; puedes dejarlos activos o apagarlos:</p>
     <div id="newmods">${MODULES.filter((m) => ['exercise', 'habits', 'shopping'].includes(m.id))
       .map(
         (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" ${isOn(m.id) ? 'checked' : ''}>
         <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></span></label>`
       )
       .join('')}</div>
-    <ul class="news">
-      <li><b>Hoy</b> muestra tu rutina y tus hábitos del día, y las calorías netas (comido − ejercicio).</li>
-      <li>Si hay más de 5 secciones, las demás quedan en <b>Más</b>.</li>
-    </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`,
     (sheet) =>
       sheet.querySelector('#newmods')?.addEventListener('change', (e) => {

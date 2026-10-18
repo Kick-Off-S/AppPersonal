@@ -7,7 +7,7 @@ const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
 export const VERSION = 1;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '3.0';
+export const APP_VERSION = '3.1';
 
 export const defaults = () => ({
   app: 'gestion-personal',
