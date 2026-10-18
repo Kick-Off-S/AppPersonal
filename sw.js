@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v2';
+const VERSION = 'gp-v3';
 const SHELL = [
   './',
   'index.html',
@@ -10,6 +10,7 @@ const SHELL = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  'icons/icon-maskable-512.png',
   'js/app.js',
   'js/store.js',
   'js/util.js',
@@ -17,6 +18,7 @@ const SHELL = [
   'js/calc.js',
   'js/charts.js',
   'js/foodpicker.js',
+  'js/backup.js',
   'js/views/today.js',
   'js/views/diet.js',
   'js/views/progress.js',
@@ -26,7 +28,13 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' evita copiar archivos viejos desde la caché HTTP del navegador.
+  e.waitUntil(
+    caches
+      .open(VERSION)
+      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {

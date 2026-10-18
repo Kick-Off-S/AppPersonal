@@ -1,4 +1,6 @@
-import { load } from './store.js';
+import { load, state, save, APP_VERSION } from './store.js';
+import { hasData } from './backup.js';
+import { openSheet } from './util.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
 import * as finance from './views/finance.js';
@@ -48,7 +50,55 @@ window.addEventListener('hashchange', show);
 
 await load();
 show();
+whatsNew();
 
+// ---------- novedades (una vez por versión, solo a quien ya usaba la app) ----------
+function whatsNew() {
+  if (state.settings.seenVersion === APP_VERSION) return;
+  const returning = hasData();
+  state.settings.seenVersion = APP_VERSION;
+  save();
+  if (!returning) return;
+  openSheet(
+    `<h3>Novedades de la versión ${APP_VERSION}</h3>
+    <ul class="news">
+      <li><b>Racha de dieta:</b> cuántos días seguidos cumples todo tu plan.</li>
+      <li><b>Proteínas, carbohidratos y grasas</b> del día en Hoy y su promedio en Progreso.</li>
+      <li><b>Topes por categoría</b> en Gastos, con aviso cuando te acercas al límite.</li>
+      <li><b>Compras en cuotas:</b> anótalas una vez y se reparten solas en los meses.</li>
+      <li><b>Exportar gastos a Excel</b> desde Ajustes.</li>
+      <li><b>Recordatorio de respaldo</b> cada 7 días, con un solo toque.</li>
+      <li>Más comidas chilenas en el buscador.</li>
+    </ul>
+    <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
+  );
+}
+
+// ---------- actualizaciones ----------
+// El service worker nuevo se instala solo en segundo plano; cuando toma el control,
+// avisamos para recargar y ver la versión nueva de inmediato.
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) showUpdateBar();
+  });
+  navigator.serviceWorker
+    .register('sw.js')
+    .then((reg) => {
+      // En iPhone la app instalada vuelve del fondo sin recargar: revisamos al volver.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch(() => {});
+}
+
+function showUpdateBar() {
+  if (document.getElementById('update-bar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'update-bar';
+  bar.className = 'update-bar';
+  bar.innerHTML = '<span>Hay una versión nueva de la app</span><button class="sm primary">Actualizar</button>';
+  bar.querySelector('button').onclick = () => location.reload();
+  document.body.appendChild(bar);
 }

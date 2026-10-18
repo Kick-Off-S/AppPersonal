@@ -6,12 +6,14 @@ const STORE = 'kv';
 const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
 export const VERSION = 1;
+// Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
+export const APP_VERSION = '2.0';
 
 export const defaults = () => ({
   app: 'gestion-personal',
   v: VERSION,
-  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null },
-  // plan[0..6] = comidas de lunes a domingo: { id, name, time, desc, kcal }
+  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '' },
+  // plan[0..6] = comidas de lunes a domingo: { id, name, time, desc, kcal, p?, c?, f? }
   // done['YYYY-MM-DD'] = { [mealId]: true } -> las comidas cumplidas cuentan para las calorías del día
   diet: { plan: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, done: {} },
   foods: [], // alimentos personalizados
@@ -19,7 +21,9 @@ export const defaults = () => ({
   water: {}, // 'YYYY-MM-DD' -> [ml, ml, ...]
   weight: [], // { id, date, kg }
   // fixed: gastos fijos mensuales { id, name, amount, cat, day, from: 'YYYY-MM' }
-  finance: { income: {}, expenses: [], fixed: [] }, // income['YYYY-MM'] = sueldo líquido
+  // expenses en cuotas comparten groupId y llevan cuota: [i, n]
+  // budgets['Categoría'] = tope mensual de gasto
+  finance: { income: {}, expenses: [], fixed: [], budgets: {} }, // income['YYYY-MM'] = sueldo líquido
   savings: [], // { id, date, type: 'in' | 'out', amount, note, ym? }
   savingsGoal: 0,
 });
@@ -37,6 +41,7 @@ export function withDefaults(data) {
   for (const k of ['foods', 'savings', 'weight']) if (!Array.isArray(out[k])) out[k] = [];
   for (const k of ['expenses', 'fixed']) if (!Array.isArray(out.finance[k])) out.finance[k] = [];
   for (const k of ['log', 'water']) if (!out[k] || typeof out[k] !== 'object') out[k] = {};
+  if (!out.finance.budgets || typeof out.finance.budgets !== 'object') out.finance.budgets = {};
   out.app = base.app;
   out.v = VERSION;
   return out;

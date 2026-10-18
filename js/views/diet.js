@@ -7,6 +7,12 @@ import { esc, uid, num, openSheet, toast, todayStr, weekdayIndex, DAYS, DAYS_SHO
 let root;
 let day = 0; // 0 = lunes
 
+// gramos: "12,5", "12.5" o "1.234,5" -> número (vacío = 0)
+const gr = (v) => {
+  let t = String(v || '').trim();
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  return Math.round((parseFloat(t) || 0) * 10) / 10;
+};
 const meals = (i) => state.diet.plan[i] || (state.diet.plan[i] = []);
 const sorted = (i) => [...meals(i)].sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
 
@@ -97,6 +103,9 @@ function mealSheet(meal) {
       <datalist id="mealnames"><option>Desayuno</option><option>Colación</option><option>Almuerzo</option><option>Once</option><option>Cena</option></datalist>
       <label class="field">Qué incluye<textarea id="desc" maxlength="500" placeholder="Ej: 1 pan integral con palta, 1 huevo, té sin azúcar">${esc(meal?.desc)}</textarea></label>
       <label class="field">Calorías aproximadas de esta comida<input id="kcal" inputmode="numeric" value="${meal?.kcal || ''}" placeholder="Si tu nutricionista no las indicó, estímalas abajo"></label>
+      <div class="three"><label class="field">Proteínas (g)<input id="p" inputmode="decimal" value="${meal?.p || ''}" placeholder="Opcional"></label>
+        <label class="field">Carbohidr. (g)<input id="c" inputmode="decimal" value="${meal?.c || ''}" placeholder="Opcional"></label>
+        <label class="field">Grasas (g)<input id="f" inputmode="decimal" value="${meal?.f || ''}" placeholder="Opcional"></label></div>
       <button type="button" class="block" id="est" style="margin-top:10px">Estimar calorías con alimentos</button>
       <div id="pk" hidden style="margin-top:6px"></div>
       ${editing ? '' : `<label class="field">Repetir en estos días</label>${dayPicker(selected)}`}
@@ -116,6 +125,7 @@ function mealSheet(meal) {
             label: 'Sumar a la comida',
             onPick(food, qty) {
               $('#kcal').value = (parseInt($('#kcal').value, 10) || 0) + Math.round(food.kcal * qty);
+              for (const k of ['p', 'c', 'f']) if (food[k]) $('#' + k).value = num(gr($('#' + k).value) + food[k] * qty, 1);
               const line = `${qty} × ${food.name} (${food.unit})`;
               $('#desc').value = $('#desc').value.trim() ? `${$('#desc').value.trim()}\n${line}` : line;
               pk.hidden = true;
@@ -125,7 +135,15 @@ function mealSheet(meal) {
           });
       };
       $('#save').onclick = () => {
-        const data = { name: $('#name').value.trim(), time: $('#time').value, desc: $('#desc').value.trim(), kcal: parseInt($('#kcal').value, 10) || 0 };
+        const data = {
+          name: $('#name').value.trim(),
+          time: $('#time').value,
+          desc: $('#desc').value.trim(),
+          kcal: parseInt($('#kcal').value, 10) || 0,
+          p: gr($('#p').value),
+          c: gr($('#c').value),
+          f: gr($('#f').value),
+        };
         if (!data.name) return toast('Ponle un nombre a la comida');
         if (editing) Object.assign(meal, data);
         else for (const i of selected.length ? selected : [day]) meals(i).push({ id: uid(), ...data });

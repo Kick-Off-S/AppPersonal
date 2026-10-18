@@ -1,5 +1,6 @@
 import { state, save } from '../store.js';
-import { dayTotals, planFor, doneFor, extrasFor, waterOf, latestWeight } from '../calc.js';
+import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight } from '../calc.js';
+import { backup, backupAge, backupDue, snoozeBackup } from '../backup.js';
 import { foodPicker } from '../foodpicker.js';
 import { esc, uid, num, parseMoney, openSheet, toast, todayStr, addDays, dayLabel, vibrate } from '../util.js';
 
@@ -27,8 +28,17 @@ function render() {
   const w = latestWeight();
   const weekAgo = addDays(todayStr(), -7);
   const needWeight = date === todayStr() && (!w || w.date < weekAgo);
+  const mac = dayMacros(date);
+  const streak = dietStreak();
+  const age = backupAge();
 
   root.innerHTML = `
+    ${
+      date === todayStr() && backupDue()
+        ? `<div class="banner warn"><b>Respalda tus datos</b><br>${age === null ? 'Aún no tienes ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`} Toma 10 segundos y te protege si pierdes o cambias el teléfono.
+          <div class="actions"><button class="ghost sm" data-act="snooze">Ahora no</button><button class="primary sm" data-act="backup">Respaldar</button></div></div>`
+        : ''
+    }
     <div class="nav"><button class="icon" data-act="prev" aria-label="Día anterior">‹</button>
       <div class="label" data-act="today">${dayLabel(date)}</div>
       <button class="icon" data-act="next" aria-label="Día siguiente">›</button></div>
@@ -39,10 +49,11 @@ function render() {
           <div class="small muted">${goal ? (left < 0 ? 'sobre la meta' : 'restantes') : 'sin meta'}</div></div></div>
       <div class="bar ${goal && left < 0 ? 'over' : ''}" style="margin-top:12px"><i style="width:${goal ? Math.min(100, (t.total / goal) * 100) : 0}%"></i></div>
       <div class="row between small muted" style="margin-top:6px"><span>Dieta ${num(t.diet)} · Fuera de la dieta ${num(t.extra)}</span><span>Meta ${goal ? num(goal) : '—'}</span></div>
+      ${mac.any ? `<div class="macros"><div><b>${num(mac.p)} g</b><span>Proteínas</span></div><div><b>${num(mac.c)} g</b><span>Carbohidratos</span></div><div><b>${num(mac.f)} g</b><span>Grasas</span></div></div>` : ''}
       ${t.missingKcal ? `<div class="banner warn" style="margin-bottom:0">${t.missingKcal} comida${t.missingKcal > 1 ? 's' : ''} de tu plan no ${t.missingKcal > 1 ? 'tienen' : 'tiene'} calorías, así que no suma${t.missingKcal > 1 ? 'n' : ''}. Agrégalas en <a href="#diet">Dieta</a>.</div>` : ''}
     </div>
 
-    <div class="card"><h2>Mi dieta</h2>
+    <div class="card"><div class="row between"><h2>Mi dieta</h2>${streak >= 2 ? `<span class="streak" style="margin-bottom:10px">🔥 ${streak} días seguidos</span>` : ''}</div>
       ${
         plan.length
           ? `<div class="small muted" style="margin:-4px 0 6px">${t.mealsDone} de ${t.mealsTotal} comidas cumplidas · marca cada una al comerla</div>` +
@@ -98,7 +109,11 @@ function onClick(e) {
     if (!Object.keys(d).length) delete state.diet.done[date];
     vibrate();
     save();
-  } else if (act === 'extra') return extraSheet();
+  } else if (act === 'backup') {
+    backup().then(render);
+    return;
+  } else if (act === 'snooze') snoozeBackup();
+  else if (act === 'extra') return extraSheet();
   else if (act === 'delextra') {
     state.log[date] = extrasFor(date).filter((x) => x.id !== id);
     if (!state.log[date].length) delete state.log[date];

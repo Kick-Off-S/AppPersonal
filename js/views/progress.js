@@ -1,5 +1,5 @@
 import { state, save } from '../store.js';
-import { dayTotals, waterOf } from '../calc.js';
+import { dayTotals, dayMacros, dietStreak, waterOf } from '../calc.js';
 import { barChart, lineChart } from '../charts.js';
 import { esc, uid, num, parseQty, openSheet, toast, todayStr, addDays, lastDays, weekdayShort, shortDate, dayLabel } from '../util.js';
 
@@ -31,6 +31,10 @@ function render() {
   const dietVals = totals.map((t) => (t.mealsTotal && t.mealsDone ? Math.round((t.mealsDone / t.mealsTotal) * 100) : null));
   const dietWith = dietVals.filter((v) => v != null);
   const dietAvg = dietWith.length ? Math.round(dietWith.reduce((a, b) => a + b, 0) / dietWith.length) : 0;
+
+  const macDays = days.map(dayMacros).filter((m) => m.any);
+  const macAvg = (k) => (macDays.length ? macDays.reduce((a, m) => a + m[k], 0) / macDays.length : 0);
+  const streak = dietStreak();
 
   const all = byDate();
   const cutoff = range ? addDays(todayStr(), -range) : '';
@@ -76,6 +80,16 @@ function render() {
     <div class="card"><h2>Dieta cumplida · últimos 7 días</h2>
       ${dietWith.length ? barChart({ labels, values: dietVals, goal: 100, fmt: (v) => v + '%', label: 'Porcentaje de comidas de la dieta cumplidas por día' }) : '<div class="small muted">Aún no hay un plan de dieta o comidas marcadas.</div>'}
       ${dietWith.length ? `<div class="small muted">Promedio: <b>${dietAvg}%</b> de las comidas del plan, en los días con registro</div>` : ''}
+      ${streak ? `<div class="small" style="margin-top:6px">🔥 Racha actual: <b>${streak} ${streak === 1 ? 'día' : 'días'}</b> seguidos con todo el plan cumplido</div>` : ''}
+    </div>
+
+    <div class="card"><h2>Proteínas, carbohidratos y grasas · promedio 7 días</h2>
+      ${
+        macDays.length
+          ? `<div class="macros" style="margin-top:0"><div><b>${num(macAvg('p'))} g</b><span>Proteínas</span></div><div><b>${num(macAvg('c'))} g</b><span>Carbohidratos</span></div><div><b>${num(macAvg('f'))} g</b><span>Grasas</span></div></div>
+            <div class="small muted" style="margin-top:8px">Promedio de ${macDays.length} ${macDays.length === 1 ? 'día' : 'días'} con registro. Suman los alimentos del buscador y las comidas del plan que tengan sus gramos.</div>`
+          : '<div class="small muted">Agrega los gramos a las comidas de tu plan (en Dieta) o registra alimentos del buscador y aparecerán aquí.</div>'
+      }
     </div>
 
     <div class="card"><h2>Agua · últimos 7 días</h2>

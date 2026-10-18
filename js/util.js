@@ -95,3 +95,27 @@ export function toast(msg) {
 }
 
 export const vibrate = () => navigator.vibrate?.(8);
+
+// Entrega un archivo al usuario: en el teléfono abre "Compartir" (Guardar en Archivos, WhatsApp, correo…);
+// en el computador lo descarga. Llamarla directo desde el toque, antes de cualquier await (Safari lo exige).
+// Devuelve false si el usuario canceló.
+export async function shareFile(name, text, type, title) {
+  const file = new File([text], name, { type });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title });
+    } catch (err) {
+      if (err.name === 'AbortError') return false;
+      throw err;
+    }
+  } else {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }
+  return true;
+}

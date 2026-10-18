@@ -26,11 +26,18 @@ Abrir http://localhost:8080 (en Chrome, modo móvil).
 Los datos personales nunca se suben: viven en el teléfono de cada uno.
 
 ## Actualizar la app
-Al cambiar archivos, subir `VERSION` en `sw.js` (ej. `gp-v3`) para que los teléfonos se actualicen.
+1. Al cambiar archivos, subir `VERSION` en `sw.js` (ej. `gp-v4`) para que los teléfonos se actualicen.
+2. Si hay novedades que mostrar, subir `APP_VERSION` en `js/store.js` y editar la lista en `whatsNew()` de `js/app.js`.
+3. Al abrir la app, los teléfonos descargan la versión nueva en segundo plano y muestran **"Hay una versión nueva · Actualizar"**.
+
+## Novedades 2.0
+Racha de dieta, proteínas/carbohidratos/grasas, topes por categoría, compras en cuotas, exportar gastos a Excel,
+recordatorio semanal de respaldo, aviso de versión nueva y más comida chilena en el buscador.
 
 ## Estructura
 - `js/store.js`: estado único (IndexedDB) y respaldo.
 - `js/calc.js`: cálculos que cruzan módulos (dieta cumplida + extras = calorías del día).
 - `js/charts.js`: gráficos SVG sin librerías.
 - `js/foodpicker.js`: buscador de alimentos reutilizable.
+- `js/backup.js`: respaldo `.json`, recordatorio semanal y exportación de gastos `.csv`.
 - `js/views/*.js`: un archivo por pestaña. Para agregar un módulo: crear la vista, registrarla en `js/app.js` y en `sw.js`.
