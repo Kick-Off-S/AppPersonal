@@ -234,3 +234,4 @@ input::-webkit-date-and-time-value { text-align: left; min-height: 22px; }
 .qchips .chip { flex: 0 0 auto; min-width: 46px; min-height: 36px; padding: 0 10px; }
 .pk-tot { margin-top: 12px; min-height: 28px; }
 .pk-unit { font-weight: 500; }
+.sheet { transition: bottom 0.15s, max-height 0.15s; }

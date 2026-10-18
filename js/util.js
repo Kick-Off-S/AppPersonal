@@ -73,7 +73,28 @@ export function openSheet(html, onMount) {
   root.innerHTML = `<div class="backdrop"></div><section class="sheet" role="dialog" aria-modal="true">${html}</section>`;
   document.body.classList.add('modal-open');
   const sheet = root.querySelector('.sheet');
+
+  // En iPhone el teclado tapa la parte de abajo de la pantalla y la hoja quedaba escondida detrás.
+  // Con visualViewport ajustamos la hoja al espacio visible y llevamos el campo activo a la vista.
+  const vv = window.visualViewport;
+  const fit = () => {
+    if (!vv) return;
+    const hidden = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    sheet.style.bottom = hidden + 'px';
+    sheet.style.maxHeight = Math.round(vv.height * 0.92) + 'px';
+  };
+  const reveal = (e) => {
+    if (!e.target.matches('input, textarea, select')) return;
+    setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+  };
+  vv?.addEventListener('resize', fit);
+  vv?.addEventListener('scroll', fit);
+  sheet.addEventListener('focusin', reveal);
+  fit();
+
   const close = () => {
+    vv?.removeEventListener('resize', fit);
+    vv?.removeEventListener('scroll', fit);
     root.innerHTML = '';
     document.body.classList.remove('modal-open');
   };

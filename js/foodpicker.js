@@ -184,7 +184,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     body.innerHTML = `<div class="pk-food"><b>${esc(food.name)}</b>
         <div class="small muted">${esc(food.unit)} = ${num(food.kcal)} kcal${food.p || food.c || food.f ? ` · P ${num(food.p, 1)} · C ${num(food.c, 1)} · G ${num(food.f, 1)} g` : ''}</div></div>
       ${modes.length > 1 ? `<div class="seg pk-mode">${modes.map((m) => `<button type="button" data-m="${m}">${modeName(m)}</button>`).join('')}</div>` : ''}
-      <label class="field">Cantidad <span class="pk-unit"></span><input class="pk-qty" inputmode="decimal" autocomplete="off"></label>
+      <label class="field">Cantidad <span class="pk-unit"></span><input class="pk-qty" inputmode="text" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
       <div class="qchips"></div>
       <div class="pk-tot"></div>
       <div class="actions">${custom && !editing ? '<button type="button" class="danger pk-rm">Quitar de mis alimentos</button>' : '<button type="button" class="ghost pk-back">Volver</button>'}
@@ -203,7 +203,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     };
     const upd = () => {
       v = parseAmount(input.value);
-      if (!v) return (tot.innerHTML = '<span class="muted small">Escribe una cantidad (ej: 2, 0,75, 3/4 o 150)</span>');
+      if (!v) return (tot.innerHTML = '<span class="muted small">Escribe una cantidad (ej: 2 · 0,75 · 3/4 · 1 1/2 · 150) o toca un botón</span>');
       const s = scaled(food, factorOf(food, mode, v));
       tot.innerHTML = `<div class="row between"><span class="muted">${esc(amountLabel(food, mode, v))}</span><span class="mid">${num(s.kcal)} kcal</span></div>
         ${s.p || s.c || s.f ? `<div class="small muted" style="text-align:right">Proteínas ${num(s.p, 1)} g · Carbohidratos ${num(s.c, 1)} g · Grasas ${num(s.f, 1)} g</div>` : ''}`;
@@ -260,14 +260,16 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
   }
 
   function manual(body) {
-    body.innerHTML = `<label class="field">Nombre (opcional)<input class="mn-name" maxlength="60" placeholder="Ej: Almuerzo en el trabajo" autocomplete="off"></label>
-      <label class="field">Calorías (kcal)<input class="mn-kcal" inputmode="numeric" placeholder="Ej: 450"></label>
+    body.innerHTML = `<label class="field">Nombre (opcional)<input class="mn-name" maxlength="60" enterkeyhint="next" placeholder="Ej: Almuerzo en el trabajo" autocomplete="off"></label>
+      <label class="field">Calorías (kcal)<input class="mn-kcal" inputmode="numeric" enterkeyhint="done" placeholder="Ej: 450"></label>
       <div class="three"><label class="field">Proteínas (g)<input class="mn-p" inputmode="decimal" placeholder="Opcional"></label>
         <label class="field">Carbohidr. (g)<input class="mn-c" inputmode="decimal" placeholder="Opcional"></label>
         <label class="field">Grasas (g)<input class="mn-f" inputmode="decimal" placeholder="Opcional"></label></div>
       <label class="row" style="margin-top:14px"><input type="checkbox" class="mn-keep" style="width:22px;min-height:22px;margin:0"> <span>Guardar como alimento mío</span></label>
       <div class="actions">${onCancel ? '<button type="button" class="ghost mn-cancel">Cancelar</button>' : ''}<button type="button" class="primary mn-ok">${esc(label)}</button></div>`;
     body.querySelector('.mn-cancel')?.addEventListener('click', onCancel);
+    const ok = () => body.querySelector('.mn-ok').click();
+    body.querySelectorAll('input:not([type=checkbox])').forEach((i) => (i.onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), ok())));
     body.querySelector('.mn-ok').onclick = () => {
       const kcal = parseInt(body.querySelector('.mn-kcal').value, 10);
       if (!(kcal >= 0)) return toast('Ingresa las calorías');
