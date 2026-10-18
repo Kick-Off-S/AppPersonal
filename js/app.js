@@ -1,6 +1,7 @@
 import { load, state, save, APP_VERSION } from './store.js';
-import { hasData } from './backup.js';
-import { openSheet } from './util.js';
+import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
+import { MODULES, isOn } from './modules.js';
+import { esc, openSheet, toast } from './util.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
 import * as finance from './views/finance.js';
@@ -17,40 +18,105 @@ const ICONS = {
   settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
 };
 
+// module: a qué módulo pertenece cada pestaña (sin module = siempre visible).
 const TABS = [
-  { id: 'today', label: 'Hoy', view: today },
-  { id: 'diet', label: 'Dieta', view: diet },
-  { id: 'finance', label: 'Gastos', view: finance },
-  { id: 'savings', label: 'Ahorro', view: savings },
-  { id: 'progress', label: 'Progreso', view: progress },
+  { id: 'today', label: 'Hoy', view: today, module: 'health' },
+  { id: 'diet', label: 'Dieta', view: diet, module: 'health' },
+  { id: 'finance', label: 'Gastos', view: finance, module: 'finance' },
+  { id: 'savings', label: 'Ahorro', view: savings, module: 'finance' },
+  { id: 'progress', label: 'Progreso', view: progress, module: 'health' },
   { id: 'settings', label: 'Ajustes', view: settings },
 ];
+const visibleTabs = () => TABS.filter((t) => !t.module || isOn(t.module));
 
 const $view = document.getElementById('view');
 const $title = document.getElementById('title');
 const $tabbar = document.getElementById('tabbar');
+const $notice = document.getElementById('notice');
 
-$tabbar.innerHTML = TABS.map(
-  (t) => `<a href="#${t.id}" data-tab="${t.id}">
+function drawTabbar() {
+  $tabbar.innerHTML = visibleTabs()
+    .map(
+      (t) => `<a href="#${t.id}" data-tab="${t.id}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[t.id]}</svg>
     <span>${t.label}</span></a>`
-).join('');
+    )
+    .join('');
+}
 
 function show() {
+  const tabs = visibleTabs();
   const id = location.hash.slice(1);
-  const tab = TABS.find((t) => t.id === id) || TABS[0];
+  const tab = tabs.find((t) => t.id === id) || tabs[0];
+  // si la pestaña pedida está en un módulo apagado, mostramos la de inicio
+  if (id && id !== tab.id) history.replaceState(null, '', '#' + tab.id);
   $title.textContent = tab.label === 'Gastos' ? 'Gastos y sueldo' : tab.label;
   $tabbar.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.tab === tab.id));
   $view.scrollTop = 0;
   window.scrollTo(0, 0);
+  drawNotice(tab === tabs[0]);
   tab.view.mount($view);
 }
 
+// Recordatorio semanal de respaldo: arriba de la pestaña de inicio (sea cual sea según los módulos).
+function drawNotice(home) {
+  if (!home || !backupDue()) return ($notice.innerHTML = '');
+  const age = backupAge();
+  $notice.innerHTML = `<div class="banner warn"><b>Respalda tus datos</b><br>${age === null ? 'Aún no tienes ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`} Toma 10 segundos y te protege si pierdes o cambias el teléfono.
+    <div class="actions"><button class="ghost sm" data-n="snooze">Ahora no</button><button class="primary sm" data-n="backup">Respaldar</button></div></div>`;
+}
+$notice.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-n]');
+  if (!b) return;
+  if (b.dataset.n === 'backup') await backup();
+  else snoozeBackup();
+  drawNotice(true);
+});
+
 window.addEventListener('hashchange', show);
+window.addEventListener('modules-changed', () => {
+  drawTabbar();
+  show();
+});
 
 await load();
+drawTabbar();
 show();
-whatsNew();
+if (!welcome()) whatsNew();
+
+// ---------- bienvenida: elegir módulos la primera vez ----------
+function welcome() {
+  if (state.settings.setupDone) return false;
+  state.settings.setupDone = true;
+  save();
+  if (hasData()) return false; // quien ya usaba la app sigue con todo activo
+  const chosen = new Set(MODULES.map((m) => m.id));
+  openSheet(
+    `<h3>¡Bienvenido!</h3>
+    <p class="muted small" style="margin-top:0">¿Qué quieres usar? Puedes cambiarlo cuando quieras en <b>Ajustes</b>.</p>
+    <div id="mods">${MODULES.map(
+      (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" checked>
+        <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></span></label>`
+    ).join('')}</div>
+    <div class="actions"><button class="primary" id="go">Empezar</button></div>`,
+    (sheet, close) => {
+      sheet.querySelector('#mods').onchange = (e) => {
+        const m = e.target.dataset.m;
+        if (e.target.checked) chosen.add(m);
+        else chosen.delete(m);
+      };
+      sheet.querySelector('#go').onclick = () => {
+        if (!chosen.size) return toast('Elige al menos uno');
+        for (const m of MODULES) state.settings.modules[m.id] = chosen.has(m.id);
+        save();
+        close();
+        drawTabbar();
+        show();
+      };
+    }
+  );
+  return true;
+}
 
 // ---------- novedades (una vez por versión, solo a quien ya usaba la app) ----------
 function whatsNew() {
@@ -62,10 +128,8 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Tamaños S / M / L / XL</b> en tortillas, huevos, frutas, papas, pan de molde y más: eliges el tamaño y las calorías se ajustan.</li>
-      <li><b>Más alimentos:</b> tortillas integrales, de maíz, de espinaca y proteicas, verduras, quesos, salsas, cecinas y más.</li>
-      <li><b>Manual con gramos:</b> copia la tabla nutricional del envase (por 100 g) y después indica cuántos gramos comiste.</li>
-      <li>Botones − / + para ajustar la cantidad sin teclado.</li>
+      <li><b>Elige tus módulos:</b> en Ajustes puedes dejar solo Dieta y salud, solo Finanzas, o ambos. Lo que ocultes no se borra.</li>
+      <li>De la 2.2: tamaños S / M / L / XL, más alimentos y Manual con gramos.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

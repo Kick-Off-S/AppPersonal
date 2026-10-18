@@ -1,6 +1,5 @@
 import { state, save } from '../store.js';
 import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight } from '../calc.js';
-import { backup, backupAge, backupDue, snoozeBackup } from '../backup.js';
 import { foodPicker, scaled } from '../foodpicker.js';
 import { mealDetail } from './diet.js';
 import { esc, uid, num, parseMoney, openSheet, toast, todayStr, addDays, dayLabel, vibrate } from '../util.js';
@@ -31,15 +30,8 @@ function render() {
   const needWeight = date === todayStr() && (!w || w.date < weekAgo);
   const mac = dayMacros(date);
   const streak = dietStreak();
-  const age = backupAge();
 
   root.innerHTML = `
-    ${
-      date === todayStr() && backupDue()
-        ? `<div class="banner warn"><b>Respalda tus datos</b><br>${age === null ? 'Aún no tienes ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`} Toma 10 segundos y te protege si pierdes o cambias el teléfono.
-          <div class="actions"><button class="ghost sm" data-act="snooze">Ahora no</button><button class="primary sm" data-act="backup">Respaldar</button></div></div>`
-        : ''
-    }
     <div class="nav"><button class="icon" data-act="prev" aria-label="Día anterior">‹</button>
       <div class="label" data-act="today">${dayLabel(date)}</div>
       <button class="icon" data-act="next" aria-label="Día siguiente">›</button></div>
@@ -110,11 +102,7 @@ function onClick(e) {
     if (!Object.keys(d).length) delete state.diet.done[date];
     vibrate();
     save();
-  } else if (act === 'backup') {
-    backup().then(render);
-    return;
-  } else if (act === 'snooze') snoozeBackup();
-  else if (act === 'extra') return extraSheet();
+  } else if (act === 'extra') return extraSheet();
   else if (act === 'delextra') {
     state.log[date] = extrasFor(date).filter((x) => x.id !== id);
     if (!state.log[date].length) delete state.log[date];

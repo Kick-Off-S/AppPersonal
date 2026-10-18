@@ -1,6 +1,7 @@
 import { state, save, replaceState, defaults, APP_VERSION } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast } from '../util.js';
+import { MODULES, isOn, setModule } from '../modules.js';
 
 let root;
 
@@ -21,10 +22,22 @@ function render() {
 
   root.innerHTML = `
     ${!standalone() && isIOS() ? `<div class="banner"><b>Instálala en tu iPhone</b><br>En Safari toca <b>Compartir</b> (el cuadro con flecha) → <b>Agregar a inicio</b>. Así abre como app y tus datos quedan más seguros.</div>` : ''}
+    <div class="card"><h2>Módulos</h2>
+      <p class="small muted" style="margin-top:0">Elige qué quieres ver en la app. Lo que ocultes no se borra: al activarlo de nuevo vuelve todo.</p>
+      ${MODULES.map(
+        (m) => `<label class="mod"><input type="checkbox" class="switch" data-mod="${m.id}" ${isOn(m.id) ? 'checked' : ''}>
+          <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)} Pestañas: ${esc(m.tabs.join(', '))}.</small></span></label>`
+      ).join('')}
+    </div>
+
     <div class="card"><h2>Perfil</h2>
       <label class="field" style="margin-top:0">Tu nombre (opcional)<input id="name" maxlength="40" value="${esc(state.settings.name)}" placeholder="Ej: Jason"></label>
-      <label class="field">Meta diaria de calorías<input id="kcal" inputmode="numeric" value="${state.settings.kcalGoal || ''}" placeholder="Ej: 1800"></label>
-      <label class="field">Meta diaria de agua (ml)<input id="water" inputmode="numeric" value="${state.settings.waterGoal || ''}" placeholder="Ej: 2000"></label>
+      ${
+        isOn('health')
+          ? `<label class="field">Meta diaria de calorías<input id="kcal" inputmode="numeric" value="${state.settings.kcalGoal || ''}" placeholder="Ej: 1800"></label>
+      <label class="field">Meta diaria de agua (ml)<input id="water" inputmode="numeric" value="${state.settings.waterGoal || ''}" placeholder="Ej: 2000"></label>`
+          : ''
+      }
     </div>
 
     <div class="card"><h2>Respaldo</h2>
@@ -36,9 +49,13 @@ function render() {
       <p class="small muted" style="margin-bottom:0">Al guardar, elige <b>Guardar en Archivos</b> (o envíatelo por WhatsApp o correo). Para pasarlo a otro teléfono, abre la app allá y toca <b>Restaurar</b>. La app te lo recordará cada 7 días.</p>
     </div>
 
-    <div class="card"><h2>Planilla de gastos</h2>
+    ${
+      isOn('finance')
+        ? `<div class="card"><h2>Planilla de gastos</h2>
       <p class="small muted" style="margin-top:0">Descarga todos tus gastos en un archivo que se abre en Excel o Google Sheets.</p>
-      <button class="block" data-act="csv">Exportar gastos a Excel</button></div>
+      <button class="block" data-act="csv">Exportar gastos a Excel</button></div>`
+        : ''
+    }
 
     <div class="card"><h2>Zona de riesgo</h2>
       <button class="danger block" data-act="reset">Borrar todos mis datos</button></div>
@@ -46,6 +63,13 @@ function render() {
 }
 
 function onChange(e) {
+  if (e.target.dataset.mod) {
+    if (!setModule(e.target.dataset.mod, e.target.checked)) {
+      e.target.checked = true;
+      return toast('Debe quedar al menos un módulo activo');
+    }
+    return toast(e.target.checked ? 'Módulo activado' : 'Módulo oculto (tus datos se conservan)');
+  }
   if (e.target.id === 'name') state.settings.name = e.target.value.trim();
   else if (e.target.id === 'kcal') state.settings.kcalGoal = parseInt(e.target.value, 10) || 0;
   else if (e.target.id === 'water') state.settings.waterGoal = parseInt(e.target.value, 10) || 0;
@@ -67,6 +91,7 @@ async function onClick(e) {
     if (!confirm('Se borrarán TODOS tus datos de este teléfono (dieta, calorías, gastos y ahorro). ¿Continuar?')) return;
     if (!confirm('Última confirmación: esto no se puede deshacer, salvo que tengas un respaldo. ¿Borrar todo?')) return;
     await replaceState(defaults());
+    window.dispatchEvent(new Event('modules-changed'));
     toast('Datos borrados');
     render();
   }
@@ -81,6 +106,7 @@ async function restore(file) {
     const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-CL') : 'fecha desconocida';
     if (!confirm(`Se reemplazarán los datos actuales por los del respaldo (${when}). ¿Continuar?`)) return;
     await replaceState(data);
+    window.dispatchEvent(new Event('modules-changed'));
     toast('Respaldo restaurado');
     render();
   } catch {

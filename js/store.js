@@ -7,12 +7,12 @@ const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
 export const VERSION = 1;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '2.2';
+export const APP_VERSION = '2.3';
 
 export const defaults = () => ({
   app: 'gestion-personal',
   v: VERSION,
-  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '' },
+  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '', setupDone: false, modules: { health: true, finance: true } },
   // plan[0..6] = comidas de lunes a domingo: { id, name, time, desc, kcal, p?, c?, f? }
   // done['YYYY-MM-DD'] = { [mealId]: true } -> las comidas cumplidas cuentan para las calorías del día
   diet: { plan: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, done: {} },
@@ -34,6 +34,7 @@ export function withDefaults(data) {
   const d = data && typeof data === 'object' ? data : {};
   const out = { ...base, ...d };
   out.settings = { ...base.settings, ...(d.settings || {}) };
+  out.settings.modules = { ...base.settings.modules, ...((d.settings && d.settings.modules) || {}) };
   out.diet = { ...base.diet, ...(d.diet || {}) };
   out.diet.plan = { ...base.diet.plan, ...((d.diet && d.diet.plan) || {}) };
   out.diet.done = (d.diet && d.diet.done) || {};
