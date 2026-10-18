@@ -3,7 +3,16 @@ import { state, save, saveNow, exportPayload } from './store.js';
 import { shareFile, toast, todayStr } from './util.js';
 
 export const hasData = () =>
-  !!(state.savings.length || state.weight.length || state.finance.expenses.length || Object.keys(state.log).length || Object.values(state.diet.plan).some((d) => d.length));
+  !!(
+    state.savings.length ||
+    state.weight.length ||
+    state.finance.expenses.length ||
+    Object.keys(state.log).length ||
+    Object.values(state.diet.plan).some((d) => d.length) ||
+    state.exercise.routines.length ||
+    state.habits.list.length ||
+    state.shopping.items.length
+  );
 
 // Días desde el último respaldo (null = nunca).
 export function backupAge() {

@@ -6,9 +6,13 @@ import { state, save } from './store.js';
 export const MODULES = [
   { id: 'health', name: 'Dieta y salud', desc: 'Comidas del plan, calorías, macros, agua, peso y progreso.', tabs: ['Hoy', 'Dieta', 'Progreso'] },
   { id: 'finance', name: 'Finanzas', desc: 'Sueldo, gastos, gastos fijos, cuotas, topes y ahorro.', tabs: ['Gastos', 'Ahorro'] },
+  { id: 'exercise', name: 'Ejercicio', desc: 'Rutinas por día que se repiten cada semana, marcar ejercicios hechos y actividad extra con calorías quemadas.', tabs: ['Ejercicio'] },
+  { id: 'habits', name: 'Hábitos', desc: 'Hábitos diarios con check, rachas y calendario del mes.', tabs: ['Hábitos'] },
+  { id: 'shopping', name: 'Lista de compras', desc: 'Lista del súper (se puede armar sola con tu dieta); al terminar registra el gasto.', tabs: ['Compras'] },
 ];
 
-export const isOn = (id) => state.settings.modules?.[id] !== false;
+// id puede ser uno o una lista (la pestaña se ve si alguno está activo)
+export const isOn = (id) => (Array.isArray(id) ? id.some(isOn) : state.settings.modules?.[id] !== false);
 
 // Activa/desactiva y avisa a la app para que redibuje las pestañas. Siempre queda al menos uno.
 export function setModule(id, on) {

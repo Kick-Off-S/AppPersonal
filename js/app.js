@@ -1,6 +1,6 @@
 import { load, state, save, APP_VERSION } from './store.js';
 import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
-import { MODULES, isOn } from './modules.js';
+import { MODULES, isOn, setModule } from './modules.js';
 import { esc, openSheet, toast } from './util.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
@@ -8,6 +8,9 @@ import * as finance from './views/finance.js';
 import * as savings from './views/savings.js';
 import * as progress from './views/progress.js';
 import * as settings from './views/settings.js';
+import * as exercise from './views/exercise.js';
+import * as habits from './views/habits.js';
+import * as shopping from './views/shopping.js';
 
 const ICONS = {
   today: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M9 15l2 2 4-4"/>',
@@ -16,18 +19,44 @@ const ICONS = {
   finance: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3"/><path d="M3 7.5v9A2.5 2.5 0 0 0 5.5 19H19a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H5.5A2.5 2.5 0 0 1 3 7.5z"/><circle cx="16" cy="13.5" r="1.1"/>',
   savings: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
   settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  exercise: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
+  habits: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>',
+  shopping: '<path d="M3 4h2.2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
+  more: '<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>',
 };
 
-// module: a qué módulo pertenece cada pestaña (sin module = siempre visible).
+// module: a qué módulo pertenece cada pestaña (sin module = siempre visible; lista = visible si alguno está activo).
+// El orden define la barra de abajo: caben 5; si hay más, las 4 primeras + "Más".
 const TABS = [
-  { id: 'today', label: 'Hoy', view: today, module: 'health' },
+  { id: 'today', label: 'Hoy', view: today, module: ['health', 'exercise', 'habits'] },
   { id: 'diet', label: 'Dieta', view: diet, module: 'health' },
-  { id: 'finance', label: 'Gastos', view: finance, module: 'finance' },
+  { id: 'exercise', label: 'Ejercicio', view: exercise, module: 'exercise' },
+  { id: 'finance', label: 'Gastos', view: finance, module: 'finance', title: 'Gastos y sueldo' },
+  { id: 'habits', label: 'Hábitos', view: habits, module: 'habits' },
   { id: 'savings', label: 'Ahorro', view: savings, module: 'finance' },
+  { id: 'shopping', label: 'Compras', view: shopping, module: 'shopping', title: 'Lista de compras' },
   { id: 'progress', label: 'Progreso', view: progress, module: 'health' },
   { id: 'settings', label: 'Ajustes', view: settings },
 ];
 const visibleTabs = () => TABS.filter((t) => !t.module || isOn(t.module));
+const MAX_BAR = 5;
+const barTabs = () => (visibleTabs().length > MAX_BAR ? visibleTabs().slice(0, MAX_BAR - 1) : visibleTabs());
+const moreTabs = () => (visibleTabs().length > MAX_BAR ? visibleTabs().slice(MAX_BAR - 1) : []);
+
+// Pestaña "Más": lista de las secciones que no caben en la barra.
+const moreView = {
+  mount(el) {
+    el.onclick = null;
+    el.innerHTML = `<div class="card more">${moreTabs()
+      .map(
+        (t) => `<a class="item" href="#${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[t.id]}</svg>
+        <div class="grow t">${t.title || t.label}</div><span class="muted">›</span></a>`
+      )
+      .join('')}</div>
+      <p class="small muted" style="text-align:center">Elige qué módulos ver en <a href="#settings">Ajustes</a>.</p>`;
+  },
+};
+const MORE = { id: 'more', label: 'Más', view: moreView };
 
 const $view = document.getElementById('view');
 const $title = document.getElementById('title');
@@ -35,7 +64,7 @@ const $tabbar = document.getElementById('tabbar');
 const $notice = document.getElementById('notice');
 
 function drawTabbar() {
-  $tabbar.innerHTML = visibleTabs()
+  $tabbar.innerHTML = [...barTabs(), ...(moreTabs().length ? [MORE] : [])]
     .map(
       (t) => `<a href="#${t.id}" data-tab="${t.id}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[t.id]}</svg>
@@ -47,11 +76,13 @@ function drawTabbar() {
 function show() {
   const tabs = visibleTabs();
   const id = location.hash.slice(1);
-  const tab = tabs.find((t) => t.id === id) || tabs[0];
+  const tab = (id === 'more' && moreTabs().length ? MORE : null) || tabs.find((t) => t.id === id) || tabs[0];
   // si la pestaña pedida está en un módulo apagado, mostramos la de inicio
   if (id && id !== tab.id) history.replaceState(null, '', '#' + tab.id);
-  $title.textContent = tab.label === 'Gastos' ? 'Gastos y sueldo' : tab.label;
-  $tabbar.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.tab === tab.id));
+  $title.textContent = tab.title || tab.label;
+  // las secciones que viven en "Más" lo dejan marcado
+  const active = moreTabs().includes(tab) ? 'more' : tab.id;
+  $tabbar.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.tab === active));
   $view.scrollTop = 0;
   window.scrollTo(0, 0);
   drawNotice(tab === tabs[0]);
@@ -127,13 +158,23 @@ function whatsNew() {
   if (!returning) return;
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
+    <p class="muted small" style="margin-top:0">Tres módulos nuevos. Déjalos activos o apágalos; puedes cambiarlo cuando quieras en Ajustes.</p>
+    <div id="newmods">${MODULES.filter((m) => ['exercise', 'habits', 'shopping'].includes(m.id))
+      .map(
+        (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" ${isOn(m.id) ? 'checked' : ''}>
+        <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></span></label>`
+      )
+      .join('')}</div>
     <ul class="news">
-      <li><b>Ahorro por cuentas:</b> separa tu ahorro en cuentas (cuenta de ahorro, depósito a plazo, fondo mutuo, APV…). Lo que tenías quedó en "Ahorro general".</li>
-      <li><b>Intereses y ganancias:</b> regístralos aparte, sin que cuenten como aporte de tu sueldo. Con la tasa anual te mostramos el interés estimado del mes.</li>
-      <li><b>Actualizar saldo:</b> para fondos que suben y bajan, escribe el saldo real y la diferencia queda como ganancia o pérdida.</li>
-      <li><b>Mover entre cuentas</b> sin afectar tu ahorro total.</li>
+      <li><b>Hoy</b> muestra tu rutina y tus hábitos del día, y las calorías netas (comido − ejercicio).</li>
+      <li>Si hay más de 5 secciones, las demás quedan en <b>Más</b>.</li>
     </ul>
-    <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
+    <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`,
+    (sheet) =>
+      sheet.querySelector('#newmods')?.addEventListener('change', (e) => {
+        const m = e.target.dataset.m;
+        if (m && !setModule(m, e.target.checked)) e.target.checked = true;
+      })
   );
 }
 

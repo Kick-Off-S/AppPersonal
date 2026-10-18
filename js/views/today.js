@@ -2,6 +2,9 @@ import { state, save } from '../store.js';
 import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight } from '../calc.js';
 import { foodPicker, scaled } from '../foodpicker.js';
 import { mealDetail } from './diet.js';
+import { isOn } from '../modules.js';
+import { routinesFor, routineProgress, burnedFor } from './exercise.js';
+import { habitsFor, isDone, toggleHabit, streakOf } from './habits.js';
 import { esc, uid, num, parseMoney, openSheet, toast, todayStr, addDays, dayLabel, vibrate } from '../util.js';
 
 let root;
@@ -19,7 +22,11 @@ export function mount(el) {
 function render() {
   const t = dayTotals(date);
   const goal = state.settings.kcalGoal || 0;
-  const left = goal - t.total;
+  const health = isOn('health');
+  // con Ejercicio activo, lo quemado se descuenta: calorías netas = comido − ejercicio
+  const burned = isOn('exercise') ? burnedFor(date) : 0;
+  const net = t.total - burned;
+  const left = goal - net;
   const plan = sortedPlan(date);
   const done = doneFor(date);
   const extras = extrasFor(date);
@@ -35,13 +42,19 @@ function render() {
     <div class="nav"><button class="icon" data-act="prev" aria-label="Día anterior">‹</button>
       <div class="label" data-act="today">${dayLabel(date)}</div>
       <button class="icon" data-act="next" aria-label="Día siguiente">›</button></div>
+    ${health ? healthTop() : ''}
+    ${isOn('habits') ? habitsCard() : ''}
+    ${isOn('exercise') ? exerciseCard() : ''}
+    ${health ? healthBottom() : ''}`;
 
+  function healthTop() {
+    return `
     <div class="card">
-      <div class="row between"><div><div class="big">${num(t.total)}</div><div class="small muted">kcal de hoy</div></div>
+      <div class="row between"><div><div class="big">${num(t.total)}</div><div class="small muted">kcal comidas${burned ? ` · neto ${num(net)}` : ''}</div></div>
         <div style="text-align:right"><div class="mid ${goal && left < 0 ? 'warn' : 'pos'}">${goal ? num(Math.abs(left)) : '—'}</div>
           <div class="small muted">${goal ? (left < 0 ? 'sobre la meta' : 'restantes') : 'sin meta'}</div></div></div>
-      <div class="bar ${goal && left < 0 ? 'over' : ''}" style="margin-top:12px"><i style="width:${goal ? Math.min(100, (t.total / goal) * 100) : 0}%"></i></div>
-      <div class="row between small muted" style="margin-top:6px"><span>Dieta ${num(t.diet)} · Fuera de la dieta ${num(t.extra)}</span><span>Meta ${goal ? num(goal) : '—'}</span></div>
+      <div class="bar ${goal && left < 0 ? 'over' : ''}" style="margin-top:12px"><i style="width:${goal ? Math.max(0, Math.min(100, (net / goal) * 100)) : 0}%"></i></div>
+      <div class="row between small muted" style="margin-top:6px"><span>Dieta ${num(t.diet)} · Fuera ${num(t.extra)}${burned ? ` · Ejercicio −${num(burned)}` : ''}</span><span>Meta ${goal ? num(goal) : '—'}</span></div>
       ${mac.any ? `<div class="macros"><div><b>${num(mac.p)} g</b><span>Proteínas</span></div><div><b>${num(mac.c)} g</b><span>Carbohidratos</span></div><div><b>${num(mac.f)} g</b><span>Grasas</span></div></div>` : ''}
       ${t.missingKcal ? `<div class="banner warn" style="margin-bottom:0">${t.missingKcal} comida${t.missingKcal > 1 ? 's' : ''} de tu plan no ${t.missingKcal > 1 ? 'tienen' : 'tiene'} calorías, así que no suma${t.missingKcal > 1 ? 'n' : ''}. Agrégalas en <a href="#diet">Dieta</a>.</div>` : ''}
     </div>
@@ -60,8 +73,11 @@ function render() {
               )
               .join('')
           : `<div class="empty"><b>Sin plan para este día</b>Carga el plan de tu nutricionista en la pestaña Dieta.<div class="actions"><a class="btn" href="#diet" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Ir a Dieta</a></div></div>`
-      }</div>
+      }</div>`;
+  }
 
+  function healthBottom() {
+    return `
     <div class="card">
       <div class="row between"><h2 style="margin:0">Fuera de la dieta</h2><button class="sm" data-act="extra">+ Agregar</button></div>
       ${
@@ -86,6 +102,46 @@ function render() {
     </div>
 
     ${needWeight ? `<div class="banner">${w ? 'Hace más de una semana que no registras tu peso.' : 'Aún no registras tu peso.'} <a href="#progress">Registrar peso</a></div>` : ''}`;
+  }
+}
+
+// Hábitos del día con check directo.
+function habitsCard() {
+  const list = habitsFor(date);
+  if (!state.habits.list.length)
+    return `<div class="card"><h2>Hábitos</h2><div class="small muted">Crea hábitos diarios y márcalos aquí cada día. <a href="#habits">Crear hábitos</a></div></div>`;
+  if (!list.length) return '';
+  const n = list.filter((h) => isDone(date, h.id)).length;
+  return `<div class="card"><div class="row between"><h2 style="margin:0">Hábitos</h2><span class="small muted">${n} de ${list.length}</span></div>
+    ${list
+      .map((h) => {
+        const d = isDone(date, h.id);
+        const st = streakOf(h, date);
+        return `<div class="item habit ${d ? 'done' : ''}"><span class="emoji">${h.emoji || '✅'}</span>
+        <div class="grow"><div class="t">${esc(h.name)}</div>${st ? `<div class="s">🔥 ${st} ${st === 1 ? 'día' : 'días'}</div>` : ''}</div>
+        <button class="check ${d ? 'on' : ''}" data-act="habit" data-id="${h.id}" aria-label="Marcar ${esc(h.name)}" aria-pressed="${d}">✓</button></div>`;
+      })
+      .join('')}</div>`;
+}
+
+// Resumen de la rutina del día (se marca en la pestaña Ejercicio).
+function exerciseCard() {
+  const list = routinesFor(date);
+  const burned = burnedFor(date);
+  if (!state.exercise.routines.length && !burned)
+    return `<div class="card"><h2>Ejercicio</h2><div class="small muted">Arma tus rutinas por día y márcalas al hacerlas. <a href="#exercise">Crear rutina</a></div></div>`;
+  return `<a class="card linkcard" href="#exercise"><div class="row between"><h2 style="margin:0">Ejercicio</h2><span class="small muted">${burned ? `${num(burned)} kcal quemadas` : ''} ›</span></div>
+    ${
+      list.length
+        ? list
+            .map((r) => {
+              const { n, total } = routineProgress(date, r);
+              return `<div style="margin-top:10px"><div class="row between"><span class="t">${esc(r.name)}</span><span class="small ${n === total && total ? 'pos' : 'muted'}">${n === total && total ? '¡Completa! 💪' : `${n} de ${total}`}</span></div>
+              <div class="bar" style="margin-top:6px"><i style="width:${total ? (n / total) * 100 : 0}%"></i></div></div>`;
+            })
+            .join('')
+        : `<div class="small muted" style="margin-top:6px">${burned ? 'Actividad registrada.' : 'Día de descanso 😌'}</div>`
+    }</a>`;
 }
 
 function onClick(e) {
@@ -95,6 +151,7 @@ function onClick(e) {
   if (act === 'prev') date = addDays(date, -1);
   else if (act === 'next') date = addDays(date, 1);
   else if (act === 'today') date = todayStr();
+  else if (act === 'habit') toggleHabit(date, id);
   else if (act === 'toggle') {
     const d = (state.diet.done[date] ||= {});
     if (d[id]) delete d[id];

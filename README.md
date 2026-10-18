@@ -30,6 +30,12 @@ Los datos personales nunca se suben: viven en el teléfono de cada uno.
 2. Si hay novedades que mostrar, subir `APP_VERSION` en `js/store.js` y editar la lista en `whatsNew()` de `js/app.js`.
 3. Al abrir la app, los teléfonos descargan la versión nueva en segundo plano y muestran **"Hay una versión nueva · Actualizar"**.
 
+## Novedades 3.0
+Módulos nuevos (se activan en Ajustes): **Ejercicio** (rutinas por día que se repiten, marcar ejercicios hechos, peso usado y
+nuevas marcas, actividad extra con calorías), **Hábitos** (checks diarios, rachas y calendario) y **Lista de compras**
+(se arma con el plan de dieta y al terminar registra el gasto). Hoy muestra hábitos, rutina y calorías netas.
+Con más de 5 secciones, la barra muestra 4 + "Más".
+
 ## Novedades 2.0
 Racha de dieta, proteínas/carbohidratos/grasas, topes por categoría, compras en cuotas, exportar gastos a Excel,
 recordatorio semanal de respaldo, aviso de versión nueva y más comida chilena en el buscador.
@@ -40,5 +46,5 @@ recordatorio semanal de respaldo, aviso de versión nueva y más comida chilena 
 - `js/charts.js`: gráficos SVG sin librerías.
 - `js/foodpicker.js`: buscador de alimentos reutilizable.
 - `js/backup.js`: respaldo `.json`, recordatorio semanal y exportación de gastos `.csv`.
-- `js/modules.js`: módulos que cada persona activa en Ajustes (Dieta y salud, Finanzas).
+- `js/modules.js`: módulos que cada persona activa en Ajustes (Dieta y salud, Finanzas, Ejercicio, Hábitos, Compras).
 - `js/views/*.js`: un archivo por pestaña. Para agregar un módulo: sumarlo en `js/modules.js`, crear sus vistas, registrar sus pestañas (con `module`) en `js/app.js` y sus archivos en `sw.js`.

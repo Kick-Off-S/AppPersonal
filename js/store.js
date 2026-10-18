@@ -7,12 +7,12 @@ const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
 export const VERSION = 1;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '2.4';
+export const APP_VERSION = '3.0';
 
 export const defaults = () => ({
   app: 'gestion-personal',
   v: VERSION,
-  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '', setupDone: false, modules: { health: true, finance: true } },
+  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '', setupDone: false, modules: { health: true, finance: true, exercise: true, habits: true, shopping: true } },
   // plan[0..6] = comidas de lunes a domingo: { id, name, time, desc, kcal, p?, c?, f? }
   // done['YYYY-MM-DD'] = { [mealId]: true } -> las comidas cumplidas cuentan para las calorías del día
   diet: { plan: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, done: {} },
@@ -30,6 +30,13 @@ export const defaults = () => ({
   //       | 'move' traspaso de acc a to (no cuenta como aporte ni retiro)
   savings: [], // { id, date, type, amount, note, acc, to?, ym? }
   savingsGoal: 0,
+  // Ejercicio: rutinas por día de la semana (0 = lunes) con ejercicios; done[fecha][rutina][ejercicio] = { kg? }
+  // log[fecha] = actividades extra { id, type, mins, kcal, note }
+  exercise: { routines: [], done: {}, log: {} },
+  // Hábitos: list { id, name, emoji, days }, done[fecha][hábito] = true
+  habits: { list: [], done: {} },
+  // Lista de compras: { id, name, qty, done }
+  shopping: { items: [] },
 });
 
 // Completa lo que falte (por si un respaldo viene de una versión anterior).
@@ -47,6 +54,15 @@ export function withDefaults(data) {
   for (const k of ['expenses', 'fixed']) if (!Array.isArray(out.finance[k])) out.finance[k] = [];
   for (const k of ['log', 'water']) if (!out[k] || typeof out[k] !== 'object') out[k] = {};
   if (!out.finance.budgets || typeof out.finance.budgets !== 'object') out.finance.budgets = {};
+  // v3: ejercicio, hábitos y compras
+  out.exercise = { ...base.exercise, ...(d.exercise || {}) };
+  if (!Array.isArray(out.exercise.routines)) out.exercise.routines = [];
+  for (const k of ['done', 'log']) if (!out.exercise[k] || typeof out.exercise[k] !== 'object') out.exercise[k] = {};
+  out.habits = { ...base.habits, ...(d.habits || {}) };
+  if (!Array.isArray(out.habits.list)) out.habits.list = [];
+  if (!out.habits.done || typeof out.habits.done !== 'object') out.habits.done = {};
+  out.shopping = { ...base.shopping, ...(d.shopping || {}) };
+  if (!Array.isArray(out.shopping.items)) out.shopping.items = [];
   // Ahorro por cuentas (v2.4): los movimientos antiguos quedan en "Ahorro general".
   if (!Array.isArray(out.savingsAccounts) || !out.savingsAccounts.length) out.savingsAccounts = base.savingsAccounts;
   const firstAcc = out.savingsAccounts[0].id;
