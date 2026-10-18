@@ -85,7 +85,7 @@ export function openSheet(html, onMount) {
   };
   const reveal = (e) => {
     if (!e.target.matches('input, textarea, select')) return;
-    setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+    setTimeout(() => e.target.scrollIntoView({ block: 'center' }), 300);
   };
   vv?.addEventListener('resize', fit);
   vv?.addEventListener('scroll', fit);

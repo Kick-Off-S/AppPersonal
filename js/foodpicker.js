@@ -184,7 +184,10 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     body.innerHTML = `<div class="pk-food"><b>${esc(food.name)}</b>
         <div class="small muted">${esc(food.unit)} = ${num(food.kcal)} kcal${food.p || food.c || food.f ? ` · P ${num(food.p, 1)} · C ${num(food.c, 1)} · G ${num(food.f, 1)} g` : ''}</div></div>
       ${modes.length > 1 ? `<div class="seg pk-mode">${modes.map((m) => `<button type="button" data-m="${m}">${modeName(m)}</button>`).join('')}</div>` : ''}
-      <label class="field">Cantidad <span class="pk-unit"></span><input class="pk-qty" inputmode="text" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="field" for="pk-qty">Cantidad <span class="pk-unit"></span></label>
+      <div class="stepper"><button type="button" class="pk-minus" aria-label="Menos">−</button>
+        <input id="pk-qty" class="pk-qty" inputmode="text" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <button type="button" class="pk-plus" aria-label="Más">+</button></div>
       <div class="qchips"></div>
       <div class="pk-tot"></div>
       <div class="actions">${custom && !editing ? '<button type="button" class="danger pk-rm">Quitar de mis alimentos</button>' : '<button type="button" class="ghost pk-back">Volver</button>'}
@@ -219,6 +222,18 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
 
     input.value = mode === 'g' ? gStr(v) : fracStr(v);
     input.oninput = upd;
+    // Al tocar el campo se selecciona el número: escribir lo reemplaza (en iPhone, sin tener que borrar).
+    input.onfocus = () => setTimeout(() => input.select(), 0);
+    // − / + para ajustar sin teclado: de a 5 g (o ml), de a ¼ en tazas/unidades, o de a 1 si la porción trae varias.
+    const step = () => (mode === 'g' ? 5 : pt.count === 1 ? 0.25 : 1);
+    const bump = (dir) => {
+      const cur = parseAmount(input.value) || 0;
+      const nv = Math.max(step(), Math.round((cur + dir * step()) / step()) * step());
+      input.value = mode === 'g' ? gStr(nv) : fracStr(nv);
+      upd();
+    };
+    body.querySelector('.pk-minus').onclick = () => bump(-1);
+    body.querySelector('.pk-plus').onclick = () => bump(1);
     input.onkeydown = (e) => e.key === 'Enter' && confirm1();
     qc.onclick = (e) => {
       const b = e.target.closest('.chip');
@@ -237,7 +252,6 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
       draw();
     });
     draw();
-    input.focus({ preventScroll: true });
     body.querySelector('.pk-ok').onclick = confirm1;
     body.querySelector('.pk-back')?.addEventListener('click', () => {
       picked = null;
