@@ -324,20 +324,23 @@ function routineSheet(r) {
     <label class="field">Nombre<input id="name" maxlength="40" value="${esc(r?.name)}" placeholder="Ej: Pierna, Tren superior, Full body" autocomplete="off"></label>
     <label class="field">Días que la haces</label>
     <div class="chips" id="days">${DAYS_SHORT.map((l, i) => `<button type="button" class="chip ${days.includes(i) ? 'sel' : ''}" data-i="${i}" aria-label="${DAYS[i]}">${l}</button>`).join('')}</div>
-    <div class="two"><label class="field">Duración aprox. (min)<input id="mins" inputmode="numeric" value="${r?.mins || 45}"></label>
-      <div><label class="field">Intensidad</label><div class="seg" id="int" style="margin-top:6px">${Object.entries(INTENSITY)
-        .map(([k, v]) => `<button type="button" data-k="${k}">${v.label}</button>`)
-        .join('')}</div></div></div>
+    <div class="two"><label class="field">Duración aprox. (min)<input id="mins" inputmode="numeric" value="${r?.mins || 45}"></label><div></div></div>
+    <label class="field">Intensidad</label>
+    <div class="seg" id="int" style="margin-top:6px">${Object.entries(INTENSITY)
+      .map(([k, v]) => `<button type="button" data-k="${k}">${v.label}</button>`)
+      .join('')}</div>
+    <p class="small muted" style="margin:6px 0 0">Se usan para estimar las calorías quemadas.</p>
 
     <label class="field">Ejercicios</label>
     <div id="items" class="ing"></div>
     <div id="itemform" class="pk-box" hidden>
       <label class="field">Ejercicio<input id="iname" list="common" maxlength="40" placeholder="Ej: Sentadilla" autocomplete="off"></label>
       <datalist id="common">${COMMON.map((c) => `<option value="${c}">`).join('')}</datalist>
-      <div class="four"><label class="field">Series<input id="isets" inputmode="numeric" placeholder="4"></label>
-        <label class="field">Reps<input id="ireps" placeholder="12"></label>
-        <label class="field">Kg<input id="ikg" inputmode="decimal" placeholder="—"></label>
-        <label class="field">Min<input id="imins" inputmode="numeric" placeholder="—"></label></div>
+      <div class="four"><label class="field">Series<input id="isets" inputmode="numeric" placeholder="Ej: 4"></label>
+        <label class="field">Reps<input id="ireps" inputmode="numeric" placeholder="Ej: 12"></label>
+        <label class="field">Kg<input id="ikg" inputmode="decimal" placeholder="Opc."></label>
+        <label class="field">Min<input id="imins" inputmode="numeric" placeholder="Opc."></label></div>
+      <p class="small muted" style="margin:6px 0 0">Para pesas usa series, reps y kg; para cardio, los minutos.</p>
       <label class="field">Nota (opcional)<input id="inote" maxlength="60" placeholder="Ej: 30 s, cada pierna, descanso 60 s" autocomplete="off"></label>
       <div class="actions"><button type="button" class="ghost" id="icancel">Cancelar</button><button type="button" class="primary" id="iok">Agregar</button></div>
     </div>
@@ -421,6 +424,8 @@ function routineSheet(r) {
       drawItems();
 
       $('#save').onclick = () => {
+        // si quedó un ejercicio escrito sin tocar "Agregar", lo incluimos
+        if (!$('#itemform').hidden && $('#iname').value.trim()) $('#iok').click();
         const data = { name: $('#name').value.trim(), days: [...days].sort(), mins: parseInt($('#mins').value, 10) || 45, intensity, items };
         if (!data.name) return toast('Ponle un nombre a la rutina');
         if (editing) Object.assign(r, data);
