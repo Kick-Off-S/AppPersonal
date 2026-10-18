@@ -36,6 +36,14 @@ export function fracStr(v) {
   return num(v, 2);
 }
 
+// Teclas del teclado numérico de la cantidad: [valor, texto]
+const KEYS = [
+  ['1', '1'], ['2', '2'], ['3', '3'], ['del', '⌫'],
+  ['4', '4'], ['5', '5'], ['6', '6'], [',', ','],
+  ['7', '7'], ['8', '8'], ['9', '9'], ['/', '/'],
+  ['sp', 'espacio'], ['0', '0'], ['clr', 'Borrar'], ['ok', 'Listo'],
+];
+
 // Número para escribir en el campo (sin separador de miles para no confundir 1.000 con 1): 150,5
 const gStr = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 
@@ -208,8 +216,9 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
       }
       <label class="field" for="pk-qty">Cantidad <span class="pk-unit"></span></label>
       <div class="stepper"><button type="button" class="pk-minus" aria-label="Menos">−</button>
-        <input id="pk-qty" class="pk-qty" inputmode="text" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <input id="pk-qty" class="pk-qty" readonly inputmode="none" autocomplete="off" aria-label="Cantidad: toca para escribir">
         <button type="button" class="pk-plus" aria-label="Más">+</button></div>
+      <div class="keypad" hidden>${KEYS.map(([k, l]) => `<button type="button" data-k="${k}" class="${k === 'ok' ? 'primary' : ''}">${l}</button>`).join('')}</div>
       <div class="qchips"></div>
       <div class="pk-tot"></div>
       <div class="actions">${custom && !editing ? '<button type="button" class="danger pk-rm">Quitar de mis alimentos</button>' : '<button type="button" class="ghost pk-back">Volver</button>'}
@@ -233,7 +242,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     };
     const upd = () => {
       v = parseAmount(input.value);
-      if (!v) return (tot.innerHTML = '<span class="muted small">Escribe una cantidad (ej: 2 · 0,75 · 3/4 · 1 1/2 · 150) o toca un botón</span>');
+      if (!v) return (tot.innerHTML = '<span class="muted small">Toca la cantidad para escribirla (ej: 150 · 0,75 · 3/4 · 1 1/2) o usa los botones</span>');
       const s = scaled(food, factorOf(food, mode, v, size));
       tot.innerHTML = `<div class="row between"><span class="muted">${esc(amountLabel(food, mode, v, size))}</span><span class="mid">${num(s.kcal)} kcal</span></div>
         ${s.p || s.c || s.f ? `<div class="small muted" style="text-align:right">Proteínas ${num(s.p, 1)} g · Carbohidratos ${num(s.c, 1)} g · Grasas ${num(s.f, 1)} g</div>` : ''}`;
@@ -249,24 +258,55 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     };
 
     input.value = mode === 'g' ? gStr(v) : fracStr(v);
-    input.oninput = upd;
-    // Al tocar el campo se selecciona el número: escribir lo reemplaza (en iPhone, sin tener que borrar).
-    input.onfocus = () => setTimeout(() => input.select(), 0);
+    // Teclado numérico propio: en iPhone el teclado del sistema tapaba la hoja y no dejaba escribir.
+    // Al abrirlo, la primera tecla reemplaza el número (no hay que borrar).
+    const pad = body.querySelector('.keypad');
+    let fresh = false;
+    const showPad = (on) => {
+      pad.hidden = !on;
+      input.classList.toggle('editing', on);
+      fresh = on;
+      if (on) setTimeout(() => pad.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+    };
+    input.onclick = () => showPad(pad.hidden);
+    pad.onclick = (e) => {
+      const k = e.target.closest('[data-k]')?.dataset.k;
+      if (!k) return;
+      if (k === 'ok') return showPad(false);
+      let txt = fresh ? '' : input.value;
+      if (k === 'del') txt = txt.slice(0, -1);
+      else if (k === 'clr') txt = '';
+      else txt += k === 'sp' ? ' ' : k;
+      fresh = false;
+      input.value = txt.replace(/^\s+/, '');
+      upd();
+    };
     // − / + para ajustar sin teclado: de a 5 g (o ml), de a ¼ en tazas/unidades, o de a 1 si la porción trae varias.
     const step = () => (mode === 'g' ? 5 : pt.count === 1 ? 0.25 : 1);
     const bump = (dir) => {
       const cur = parseAmount(input.value) || 0;
       const nv = Math.max(step(), Math.round((cur + dir * step()) / step()) * step());
       input.value = mode === 'g' ? gStr(nv) : fracStr(nv);
+      fresh = !pad.hidden;
       upd();
     };
     body.querySelector('.pk-minus').onclick = () => bump(-1);
     body.querySelector('.pk-plus').onclick = () => bump(1);
-    input.onkeydown = (e) => e.key === 'Enter' && confirm1();
+    // en computador también se puede escribir con el teclado físico
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') return confirm1();
+      const map = { Backspace: 'del', ' ': 'sp', '.': ',' };
+      const k = map[e.key] || (/^[0-9,/]$/.test(e.key) ? e.key : null);
+      if (!k) return;
+      e.preventDefault();
+      if (pad.hidden) showPad(true);
+      pad.querySelector(`[data-k="${k}"]`)?.click();
+    };
     qc.onclick = (e) => {
       const b = e.target.closest('.chip');
       if (!b) return;
       input.value = mode === 'g' ? b.dataset.v : fracStr(+b.dataset.v);
+      fresh = !pad.hidden;
       upd();
     };
     body.querySelector('.pk-mode')?.addEventListener('click', (e) => {

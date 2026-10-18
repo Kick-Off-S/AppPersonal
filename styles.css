@@ -360,3 +360,12 @@ a.linkcard .t { font-weight: 650; }
 .item.done .mchips { opacity: 0.6; }
 .macros span { display: block; }
 .macros em { display: block; font-style: normal; font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+/* ---- sin zoom por doble toque (iPhone) y teclado numérico ---- */
+html, body, button, a, input, select, textarea, label, .item { touch-action: manipulation; }
+.pk-qty { cursor: pointer; caret-color: transparent; }
+.pk-qty.editing { outline: 2px solid var(--primary); outline-offset: -1px; background: var(--card); }
+.keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.keypad button { min-height: 48px; padding: 0; font-size: 20px; font-weight: 650; background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+.keypad button[data-k="sp"], .keypad button[data-k="clr"] { font-size: 13px; color: var(--muted); }
+.keypad button.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); font-size: 15px; }
