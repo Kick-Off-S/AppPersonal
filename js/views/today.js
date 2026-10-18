@@ -1,7 +1,7 @@
 import { state, save } from '../store.js';
 import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight } from '../calc.js';
 import { foodPicker, scaled } from '../foodpicker.js';
-import { mealDetail } from './diet.js';
+import { mealDetail, macroChips } from './diet.js';
 import { isOn } from '../modules.js';
 import { routinesFor, routineProgress, burnedFor } from './exercise.js';
 import { habitsFor, isDone, toggleHabit, streakOf } from './habits.js';
@@ -68,7 +68,7 @@ function render() {
                 (m) => `<div class="item ${done[m.id] ? 'done' : ''}">
               <button class="check ${done[m.id] ? 'on' : ''}" data-act="toggle" data-id="${m.id}" aria-label="Marcar como cumplida" aria-pressed="${!!done[m.id]}">✓</button>
               <div class="grow"><div class="t">${m.time ? `<span class="time">${esc(m.time)}</span> · ` : ''}${esc(m.name)}</div>
-                ${mealDetail(m) ? `<div class="s pre">${esc(mealDetail(m))}</div>` : ''}</div>
+                ${mealDetail(m) ? `<div class="s pre">${esc(mealDetail(m))}</div>` : ''}${macroChips(m)}</div>
               <div class="amount small">${m.kcal ? num(m.kcal) + ' kcal' : '<span class="muted">sin kcal</span>'}</div></div>`
               )
               .join('')

@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v13';
+const VERSION = 'gp-v14';
 const SHELL = [
   './',
   'index.html',

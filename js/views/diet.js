@@ -27,6 +27,13 @@ function render() {
   const list = sorted(day);
   const today = weekdayIndex(todayStr());
   const total = list.reduce((a, m) => a + (m.kcal || 0), 0);
+  const sumOf = (k) => Math.round(list.reduce((a, m) => a + (m[k] || 0), 0) * 10) / 10;
+  const P = sumOf('p'), C = sumOf('c'), F = sumOf('f');
+  // % de las calorías que aporta cada macro (4 kcal/g proteína y carbohidrato, 9 kcal/g grasa)
+  const mk = P * 4 + C * 4 + F * 9;
+  const pct = (g, k) => (mk ? Math.round(((g * k) / mk) * 100) : 0);
+  const noMacros = list.filter((m) => !hasMacros(m)).length;
+  const goal = state.settings.kcalGoal || 0;
   const chips = DAYS_SHORT.map(
     (l, i) => `<button class="chip ${i === day ? 'sel' : ''} ${i === today ? 'today' : ''}" data-act="day" data-i="${i}" aria-label="${DAYS[i]}">${l}</button>`
   ).join('');
@@ -40,13 +47,27 @@ function render() {
   } else {
     body = `<div class="card">
       <div class="row between"><div class="mid">${DAYS[day]}</div><div class="amount">${num(total)} <span class="muted small">kcal</span></div></div>
-      <div class="small muted" style="margin-bottom:4px">Las calorías se suman en <b>Hoy</b> cuando marcas cada comida como cumplida.</div>
+      ${goal ? `<div class="small muted">Meta diaria ${num(goal)} kcal · ${total > goal ? `<span class="warn">${num(total - goal)} sobre la meta</span>` : `faltan ${num(goal - total)}`}</div>` : ''}
+      <div class="macros">
+        <div><b>${num(P, 1)} g</b><span>Proteínas</span>${mk ? `<em>${pct(P, 4)}% de las kcal</em>` : ''}</div>
+        <div><b>${num(C, 1)} g</b><span>Carbohidratos</span>${mk ? `<em>${pct(C, 4)}% de las kcal</em>` : ''}</div>
+        <div><b>${num(F, 1)} g</b><span>Grasas</span>${mk ? `<em>${pct(F, 9)}% de las kcal</em>` : ''}</div>
+      </div>
+      ${
+        noMacros
+          ? `<div class="banner warn small" style="margin:10px 0 4px">${
+              noMacros === 1 ? '1 comida no tiene' : `${noMacros} comidas no tienen`
+            } proteínas, carbohidratos ni grasas, así que el total está incompleto. ${noMacros > 1 ? 'Toca cada una' : 'Tócala'} para agregar sus alimentos o escribir los gramos.</div>`
+          : ''
+      }
+      <div class="small muted" style="margin:8px 0 4px">Se suman en <b>Hoy</b> cuando marcas cada comida como cumplida.</div>
       ${list
         .map(
           (m) => `<div class="item" data-act="edit" data-id="${m.id}">
           <div class="grow">
             <div class="t">${m.time ? `<span class="time">${esc(m.time)}</span> · ` : ''}${esc(m.name)}</div>
             ${mealDetail(m) ? `<div class="s pre">${esc(mealDetail(m))}</div>` : ''}
+            ${macroChips(m) || '<div class="s warn">Sin proteínas, carbos ni grasas</div>'}
           </div>
           <div class="amount small">${m.kcal ? num(m.kcal) + ' kcal' : '<span class="warn">sin kcal</span>'}</div>
           <button class="ghost icon" data-act="edit" data-id="${m.id}" aria-label="Editar">✎</button></div>`
@@ -93,6 +114,12 @@ function bindPicker(sheet, selected) {
 
 // Ingredientes de una comida: { id, name, label, qty, mode, amount, kcal, p, c, f, food: { name, unit, kcal, p, c, f } }
 const itemsText = (items) => (items || []).map((it) => `${it.name} · ${it.label}`).join('\n');
+// "P 30 · C 45 · G 12 g" de una comida (vacío si no tiene macros)
+export const hasMacros = (m) => !!(m.p || m.c || m.f);
+export const macroChips = (m) =>
+  hasMacros(m)
+    ? `<div class="mchips"><span class="mc p">P ${num(m.p || 0, 1)}</span><span class="mc c">C ${num(m.c || 0, 1)}</span><span class="mc f">G ${num(m.f || 0, 1)}</span><span class="muted">g</span></div>`
+    : '';
 export const mealDetail = (m) => [itemsText(m.items), m.desc].filter(Boolean).join('\n');
 
 function mealSheet(meal) {
