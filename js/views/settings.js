@@ -2,6 +2,7 @@ import { state, save, replaceState, defaults, APP_VERSION } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast } from '../util.js';
 import { MODULES, isOn, setModule } from '../modules.js';
+import { PALETTES, MODES, setTheme } from '../theme.js';
 
 let root;
 
@@ -22,6 +23,18 @@ function render() {
 
   root.innerHTML = `
     ${!standalone() && isIOS() ? `<div class="banner"><b>Instálala en tu iPhone</b><br>En Safari toca <b>Compartir</b> (el cuadro con flecha) → <b>Agregar a inicio</b>. Así abre como app y tus datos quedan más seguros.</div>` : ''}
+    <div class="card"><h2>Apariencia</h2>
+      <div class="small muted">Color</div>
+      <div class="swatches">${PALETTES.map(
+        (p) => `<button type="button" class="swatch ${(state.settings.theme?.palette || 'teal') === p.id ? 'sel' : ''}" data-act="palette" data-p="${p.id}" style="--sw:${p.light};--swd:${p.dark}" aria-label="${p.name}"><i>${(state.settings.theme?.palette || 'teal') === p.id ? '✓' : ''}</i>${p.name}</button>`
+      ).join('')}</div>
+      <div class="small muted" style="margin-top:14px">Modo</div>
+      <div class="seg">${MODES.map(
+        (m) => `<button type="button" class="${(state.settings.theme?.mode || 'auto') === m.id ? 'sel' : ''}" data-act="mode" data-m="${m.id}">${m.name}</button>`
+      ).join('')}</div>
+      <p class="small muted" style="margin-bottom:0">Automático sigue el modo claro u oscuro de tu teléfono.</p>
+    </div>
+
     <div class="card"><h2>Módulos</h2>
       <p class="small muted" style="margin-top:0">Elige qué quieres ver en la app. Lo que ocultes no se borra: al activarlo de nuevo vuelve todo.</p>
       ${MODULES.map(
@@ -82,6 +95,8 @@ function onChange(e) {
 async function onClick(e) {
   const t = e.target.closest('[data-act]');
   if (!t) return;
+  if (t.dataset.act === 'palette') return setTheme({ palette: t.dataset.p }), render();
+  if (t.dataset.act === 'mode') return setTheme({ mode: t.dataset.m }), render();
   if (t.dataset.act === 'export') {
     await backup();
     render();

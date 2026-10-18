@@ -46,5 +46,6 @@ recordatorio semanal de respaldo, aviso de versión nueva y más comida chilena 
 - `js/charts.js`: gráficos SVG sin librerías.
 - `js/foodpicker.js`: buscador de alimentos reutilizable.
 - `js/backup.js`: respaldo `.json`, recordatorio semanal y exportación de gastos `.csv`.
+- `js/theme.js`: paletas de colores y modo claro/oscuro (Ajustes → Apariencia). Los colores viven en `styles.css` (`--p` / `--pd` por paleta).
 - `js/modules.js`: módulos que cada persona activa en Ajustes (Dieta y salud, Finanzas, Ejercicio, Hábitos, Compras).
 - `js/views/*.js`: un archivo por pestaña. Para agregar un módulo: sumarlo en `js/modules.js`, crear sus vistas, registrar sus pestañas (con `module`) en `js/app.js` y sus archivos en `sw.js`.

@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v12';
+const VERSION = 'gp-v13';
 const SHELL = [
   './',
   'index.html',
@@ -20,6 +20,7 @@ const SHELL = [
   'js/foodpicker.js',
   'js/backup.js',
   'js/modules.js',
+  'js/theme.js',
   'js/views/today.js',
   'js/views/diet.js',
   'js/views/progress.js',

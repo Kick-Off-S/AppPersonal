@@ -1,7 +1,8 @@
 import { load, state, save, APP_VERSION } from './store.js';
 import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
-import { MODULES, isOn, setModule } from './modules.js';
+import { MODULES, isOn } from './modules.js';
 import { esc, openSheet, toast } from './util.js';
+import { applyTheme, setTheme, PALETTES } from './theme.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
 import * as finance from './views/finance.js';
@@ -106,11 +107,13 @@ $notice.addEventListener('click', async (e) => {
 
 window.addEventListener('hashchange', show);
 window.addEventListener('modules-changed', () => {
+  applyTheme(); // por si se restauró un respaldo con otra apariencia
   drawTabbar();
   show();
 });
 
 await load();
+applyTheme();
 drawTabbar();
 show();
 if (!welcome()) whatsNew();
@@ -162,25 +165,17 @@ function whatsNew() {
   if (!returning) return;
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
-    <div class="row" style="gap:14px;margin:6px 0 4px"><img src="icons/icon-v2-192.png" alt="" width="64" height="64" style="border-radius:16px">
-      <div><b>Logo nuevo</b><div class="small muted">Representa los módulos: dieta, finanzas, ejercicio y hábitos.</div></div></div>
-    ${
-      isIOSDevice()
-        ? `<div class="banner small">En iPhone el ícono de la pantalla de inicio no cambia solo. Si quieres verlo: <b>1)</b> Ajustes → Guardar respaldo, <b>2)</b> borra el ícono y vuelve a <b>Agregar a inicio</b> desde Safari, <b>3)</b> Ajustes → Restaurar. Es opcional: la app funciona igual con el ícono antiguo.</div>`
-        : '<div class="small muted">En Android el ícono se actualiza solo en los próximos días.</div>'
-    }
-    <p class="muted small" style="margin:12px 0 0">También: formularios de rutinas ordenados. Y si no lo viste en la 3.0, hay tres módulos nuevos; puedes dejarlos activos o apagarlos:</p>
-    <div id="newmods">${MODULES.filter((m) => ['exercise', 'habits', 'shopping'].includes(m.id))
-      .map(
-        (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" ${isOn(m.id) ? 'checked' : ''}>
-        <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></span></label>`
-      )
-      .join('')}</div>
+    <p style="margin:6px 0 0"><b>Elige tus colores:</b> en <b>Ajustes → Apariencia</b> hay 10 paletas y modo claro, oscuro o automático. Toca una para probarla:</p>
+    <div class="swatches" id="newpal">${PALETTES.map(
+      (p) => `<button type="button" class="swatch ${document.documentElement.dataset.palette === p.id ? 'sel' : ''}" data-p="${p.id}" style="--sw:${p.light};--swd:${p.dark}"><i></i>${p.name}</button>`
+    ).join('')}</div>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`,
     (sheet) =>
-      sheet.querySelector('#newmods')?.addEventListener('change', (e) => {
-        const m = e.target.dataset.m;
-        if (m && !setModule(m, e.target.checked)) e.target.checked = true;
+      sheet.querySelector('#newpal')?.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-p]');
+        if (!b) return;
+        setTheme({ palette: b.dataset.p });
+        sheet.querySelectorAll('#newpal .swatch').forEach((x) => x.classList.toggle('sel', x === b));
       })
   );
 }

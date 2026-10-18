@@ -1,36 +1,70 @@
+/* ---- colores ----
+   Cada paleta define su color principal para modo claro (--p) y oscuro (--pd).
+   El fondo, los bordes y los tonos suaves se derivan de ese color para que toda la app lo refleje.
+   La paleta y el modo se eligen en Ajustes → Apariencia (atributos data-palette y data-mode en <html>). */
 :root {
-  --bg: #f4f6f5;
+  --p: #0f766e;
+  --pd: #2dd4bf;
+  --bg: color-mix(in srgb, var(--p) 5%, #f5f6f6);
   --card: #ffffff;
-  --text: #14211f;
-  --muted: #5f6f6c;
-  --line: #e3e9e7;
-  --primary: #0f766e;
+  --text: #15201e;
+  --muted: #5f6c6a;
+  --line: color-mix(in srgb, var(--p) 9%, #e4e8e7);
+  --primary: var(--p);
   --primary-ink: #ffffff;
-  --primary-soft: #d9f0ec;
+  --primary-soft: color-mix(in srgb, var(--p) 15%, #ffffff);
   --danger: #b42318;
   --danger-soft: #fde7e4;
   --warn: #b45309;
   --ok: #15803d;
-  --shadow: 0 1px 2px rgba(16, 40, 36, 0.06), 0 4px 14px rgba(16, 40, 36, 0.05);
+  --shadow: 0 1px 2px rgba(16, 30, 30, 0.06), 0 4px 14px rgba(16, 30, 30, 0.05);
   --tab-h: 58px;
-  color-scheme: light dark;
+  color-scheme: light;
 }
+:root[data-palette="teal"] { --p: #0f766e; --pd: #2dd4bf; }
+:root[data-palette="blue"] { --p: #1d4ed8; --pd: #60a5fa; }
+:root[data-palette="indigo"] { --p: #4338ca; --pd: #818cf8; }
+:root[data-palette="violet"] { --p: #7c3aed; --pd: #a78bfa; }
+:root[data-palette="pink"] { --p: #be185d; --pd: #f472b6; }
+:root[data-palette="coral"] { --p: #e11d48; --pd: #fb7185; }
+:root[data-palette="orange"] { --p: #c2410c; --pd: #fb923c; }
+:root[data-palette="green"] { --p: #15803d; --pd: #4ade80; }
+:root[data-palette="brown"] { --p: #7c4a1e; --pd: #d4a373; }
+:root[data-palette="graphite"] { --p: #334155; --pd: #94a3b8; }
+/* oscuro: automático según el teléfono, salvo que se elija Claro; o forzado con Oscuro */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1514;
-    --card: #17211f;
-    --text: #e8f0ee;
-    --muted: #94a6a2;
-    --line: #26332f;
-    --primary: #2dd4bf;
-    --primary-ink: #062a26;
-    --primary-soft: #14332f;
-    --danger: #ff8a7a;
-    --danger-soft: #3a1d19;
-    --warn: #f5b25a;
-    --ok: #5fd68a;
-    --shadow: none;
+  :root:not([data-mode="light"]) {
+  --bg: color-mix(in srgb, var(--pd) 6%, #0b100f);
+  --card: color-mix(in srgb, var(--pd) 7%, #151b1a);
+  --text: #e8eeed;
+  --muted: #98a6a3;
+  --line: color-mix(in srgb, var(--pd) 12%, #242b2a);
+  --primary: var(--pd);
+  --primary-ink: #0b1312;
+  --primary-soft: color-mix(in srgb, var(--pd) 20%, #151b1a);
+  --danger: #ff8a7a;
+  --danger-soft: #3a1d19;
+  --warn: #f5b25a;
+  --ok: #5fd68a;
+  --shadow: none;
+  color-scheme: dark;
   }
+}
+:root[data-mode="dark"] {
+  --bg: color-mix(in srgb, var(--pd) 6%, #0b100f);
+  --card: color-mix(in srgb, var(--pd) 7%, #151b1a);
+  --text: #e8eeed;
+  --muted: #98a6a3;
+  --line: color-mix(in srgb, var(--pd) 12%, #242b2a);
+  --primary: var(--pd);
+  --primary-ink: #0b1312;
+  --primary-soft: color-mix(in srgb, var(--pd) 20%, #151b1a);
+  --danger: #ff8a7a;
+  --danger-soft: #3a1d19;
+  --warn: #f5b25a;
+  --ok: #5fd68a;
+  --shadow: none;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -310,3 +344,10 @@ a.linkcard .t { font-weight: 650; }
 .four label.field { text-align: center; }
 /* campos lado a lado alineados abajo aunque una etiqueta ocupe dos líneas */
 .two, .three, .four { align-items: end; }
+
+/* ---- apariencia ---- */
+.swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 8px; }
+.swatch { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; min-height: 0; padding: 4px 0; color: var(--muted); font-size: 11px; font-weight: 600; }
+.swatch i { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--sw) 50%, var(--swd) 50%); display: grid; place-items: center; color: #fff; font-style: normal; font-size: 18px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.swatch.sel { color: var(--text); }
+.swatch.sel i { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--sw); }
