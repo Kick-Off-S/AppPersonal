@@ -1,7 +1,8 @@
 import { state, save } from '../store.js';
 import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight } from '../calc.js';
 import { backup, backupAge, backupDue, snoozeBackup } from '../backup.js';
-import { foodPicker } from '../foodpicker.js';
+import { foodPicker, scaled } from '../foodpicker.js';
+import { mealDetail } from './diet.js';
 import { esc, uid, num, parseMoney, openSheet, toast, todayStr, addDays, dayLabel, vibrate } from '../util.js';
 
 let root;
@@ -62,7 +63,7 @@ function render() {
                 (m) => `<div class="item ${done[m.id] ? 'done' : ''}">
               <button class="check ${done[m.id] ? 'on' : ''}" data-act="toggle" data-id="${m.id}" aria-label="Marcar como cumplida" aria-pressed="${!!done[m.id]}">✓</button>
               <div class="grow"><div class="t">${m.time ? `<span class="time">${esc(m.time)}</span> · ` : ''}${esc(m.name)}</div>
-                ${m.desc ? `<div class="s pre">${esc(m.desc)}</div>` : ''}</div>
+                ${mealDetail(m) ? `<div class="s pre">${esc(mealDetail(m))}</div>` : ''}</div>
               <div class="amount small">${m.kcal ? num(m.kcal) + ' kcal' : '<span class="muted">sin kcal</span>'}</div></div>`
               )
               .join('')
@@ -75,7 +76,7 @@ function render() {
         extras.length
           ? extras
               .map(
-                (e) => `<div class="item"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${num(e.qty, 2)} × ${esc(e.unit)}</div></div>
+                (e) => `<div class="item"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.label || `${num(e.qty, 2)} × ${e.unit}`)}${e.p || e.c || e.f ? ` · P ${num(e.p, 1)} · C ${num(e.c, 1)} · G ${num(e.f, 1)}` : ''}</div></div>
               <div class="amount">${num(e.kcal)}<span class="muted small"> kcal</span></div>
               <button class="ghost icon sm" data-act="delextra" data-id="${e.id}" aria-label="Quitar">✕</button></div>`
               )
@@ -162,17 +163,15 @@ function extraSheet() {
     `<h3>Fuera de la dieta</h3><p class="muted small" style="margin-top:0">Registra solo lo que comiste y no está en tu plan de hoy.</p><div id="pk"></div>`,
     (sheet, close) =>
       foodPicker(sheet.querySelector('#pk'), {
-        onPick(food, qty) {
+        onPick({ food, qty, label }) {
           (state.log[date] ||= []).push({
             id: uid(),
             name: food.name,
             unit: food.unit,
             qty,
-            kcal: Math.round(food.kcal * qty),
-            p: Math.round(food.p * qty * 10) / 10,
-            c: Math.round(food.c * qty * 10) / 10,
-            f: Math.round(food.f * qty * 10) / 10,
-            per: { kcal: food.kcal, p: food.p, c: food.c, f: food.f },
+            label,
+            ...scaled(food, qty),
+            per: { kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0 },
           });
           save();
           vibrate();

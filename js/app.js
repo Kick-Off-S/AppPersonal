@@ -62,13 +62,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Racha de dieta:</b> cuántos días seguidos cumples todo tu plan.</li>
-      <li><b>Proteínas, carbohidratos y grasas</b> del día en Hoy y su promedio en Progreso.</li>
-      <li><b>Topes por categoría</b> en Gastos, con aviso cuando te acercas al límite.</li>
-      <li><b>Compras en cuotas:</b> anótalas una vez y se reparten solas en los meses.</li>
-      <li><b>Exportar gastos a Excel</b> desde Ajustes.</li>
-      <li><b>Recordatorio de respaldo</b> cada 7 días, con un solo toque.</li>
-      <li>Más comidas chilenas en el buscador.</li>
+      <li><b>Cantidades a tu medida:</b> 2 rebanadas, ¾ taza, 150 g… las calorías se recalculan solas.</li>
+      <li><b>Alimentos de cada comida:</b> arma tus comidas del plan con alimentos; las calorías, proteínas, carbohidratos y grasas se llenan solas. Toca un alimento para cambiar su cantidad.</li>
+      <li>Formulario de comidas ordenado en iPhone.</li>
+      <li>De la 2.0: racha de dieta, macros, topes por categoría, compras en cuotas, exportar a Excel y recordatorio de respaldo.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

@@ -1,7 +1,7 @@
 // Plan de dieta por día de la semana. Cada comida puede tener calorías: al marcarla como cumplida
 // en "Hoy", esas calorías se suman al día automáticamente.
 import { state, save } from '../store.js';
-import { foodPicker } from '../foodpicker.js';
+import { foodPicker, scaled } from '../foodpicker.js';
 import { esc, uid, num, openSheet, toast, todayStr, weekdayIndex, DAYS, DAYS_SHORT } from '../util.js';
 
 let root;
@@ -46,7 +46,7 @@ function render() {
           (m) => `<div class="item" data-act="edit" data-id="${m.id}">
           <div class="grow">
             <div class="t">${m.time ? `<span class="time">${esc(m.time)}</span> · ` : ''}${esc(m.name)}</div>
-            ${m.desc ? `<div class="s pre">${esc(m.desc)}</div>` : ''}
+            ${mealDetail(m) ? `<div class="s pre">${esc(mealDetail(m))}</div>` : ''}
           </div>
           <div class="amount small">${m.kcal ? num(m.kcal) + ' kcal' : '<span class="warn">sin kcal</span>'}</div>
           <button class="ghost icon" data-act="edit" data-id="${m.id}" aria-label="Editar">✎</button></div>`
@@ -55,7 +55,7 @@ function render() {
   }
 
   root.innerHTML = `<div class="chips">${chips}</div>${body}
-    <div class="actions"><button class="primary" data-act="add">+ Agregar comida</button>
+    <div class="actions"><button class="primary wide" data-act="add">+ Agregar comida</button>
     ${list.length ? '<button data-act="copy">Copiar día</button>' : ''}</div>`;
 }
 
@@ -91,9 +91,14 @@ function bindPicker(sheet, selected) {
   });
 }
 
+// Ingredientes de una comida: { id, name, label, qty, mode, amount, kcal, p, c, f, food: { name, unit, kcal, p, c, f } }
+const itemsText = (items) => (items || []).map((it) => `${it.name} · ${it.label}`).join('\n');
+export const mealDetail = (m) => [itemsText(m.items), m.desc].filter(Boolean).join('\n');
+
 function mealSheet(meal) {
   const editing = !!meal;
   const selected = [day];
+  let items = (meal?.items || []).map((it) => ({ ...it }));
   openSheet(
     `<h3>${editing ? 'Editar comida' : 'Nueva comida'}</h3>
       <div class="two">
@@ -101,13 +106,18 @@ function mealSheet(meal) {
         <label class="field">Hora<input id="time" type="time" value="${esc(meal?.time)}"></label>
       </div>
       <datalist id="mealnames"><option>Desayuno</option><option>Colación</option><option>Almuerzo</option><option>Once</option><option>Cena</option></datalist>
-      <label class="field">Qué incluye<textarea id="desc" maxlength="500" placeholder="Ej: 1 pan integral con palta, 1 huevo, té sin azúcar">${esc(meal?.desc)}</textarea></label>
-      <label class="field">Calorías aproximadas de esta comida<input id="kcal" inputmode="numeric" value="${meal?.kcal || ''}" placeholder="Si tu nutricionista no las indicó, estímalas abajo"></label>
-      <div class="three"><label class="field">Proteínas (g)<input id="p" inputmode="decimal" value="${meal?.p || ''}" placeholder="Opcional"></label>
-        <label class="field">Carbohidr. (g)<input id="c" inputmode="decimal" value="${meal?.c || ''}" placeholder="Opcional"></label>
-        <label class="field">Grasas (g)<input id="f" inputmode="decimal" value="${meal?.f || ''}" placeholder="Opcional"></label></div>
-      <button type="button" class="block" id="est" style="margin-top:10px">Estimar calorías con alimentos</button>
-      <div id="pk" hidden style="margin-top:6px"></div>
+
+      <label class="field">Alimentos</label>
+      <div class="ing" id="ing"></div>
+      <button type="button" class="block" id="add-ing">+ Agregar alimento</button>
+      <div id="pk" hidden class="pk-box"></div>
+
+      <label class="field">Notas (opcional)<textarea id="desc" maxlength="500" placeholder="Ej: té sin azúcar, ensalada libre">${esc(meal?.desc)}</textarea></label>
+      <label class="field">Calorías de esta comida<input id="kcal" inputmode="numeric" value="${meal?.kcal || ''}" placeholder="Se calculan con los alimentos"></label>
+      <div class="three"><label class="field">Proteínas (g)<input id="p" inputmode="decimal" value="${meal?.p || ''}" placeholder="—"></label>
+        <label class="field">Carbohidr. (g)<input id="c" inputmode="decimal" value="${meal?.c || ''}" placeholder="—"></label>
+        <label class="field">Grasas (g)<input id="f" inputmode="decimal" value="${meal?.f || ''}" placeholder="—"></label></div>
+      <div class="small muted" id="auto-hint" style="margin-top:6px"></div>
       ${editing ? '' : `<label class="field">Repetir en estos días</label>${dayPicker(selected)}`}
       <div class="actions">
         ${editing ? '<button type="button" class="danger" id="del">Eliminar</button>' : '<button type="button" class="ghost" data-close>Cancelar</button>'}
@@ -117,23 +127,85 @@ function mealSheet(meal) {
       if (!editing) bindPicker(sheet, selected);
       const $ = (s) => sheet.querySelector(s);
       const pk = $('#pk');
-      let picker;
-      $('#est').onclick = () => {
-        pk.hidden = !pk.hidden;
-        if (!pk.hidden && !picker)
-          picker = foodPicker(pk, {
-            label: 'Sumar a la comida',
-            onPick(food, qty) {
-              $('#kcal').value = (parseInt($('#kcal').value, 10) || 0) + Math.round(food.kcal * qty);
-              for (const k of ['p', 'c', 'f']) if (food[k]) $('#' + k).value = num(gr($('#' + k).value) + food[k] * qty, 1);
-              const line = `${qty} × ${food.name} (${food.unit})`;
-              $('#desc').value = $('#desc').value.trim() ? `${$('#desc').value.trim()}\n${line}` : line;
-              pk.hidden = true;
-              picker.reset();
-              toast('Sumado a la comida');
-            },
-          });
+      const addBtn = $('#add-ing');
+      let editId = null; // ingrediente que se está editando
+      const fmtG = (v) => (v ? String(Math.round(v * 10) / 10).replace('.', ',') : '');
+
+      // Con alimentos, las calorías y macros se calculan solas (se pueden ajustar a mano después).
+      const recalc = () => {
+        if (!items.length) return;
+        const t = items.reduce((a, it) => ({ kcal: a.kcal + it.kcal, p: a.p + it.p, c: a.c + it.c, f: a.f + it.f }), { kcal: 0, p: 0, c: 0, f: 0 });
+        $('#kcal').value = Math.round(t.kcal);
+        $('#p').value = fmtG(t.p);
+        $('#c').value = fmtG(t.c);
+        $('#f').value = fmtG(t.f);
       };
+      const drawItems = () => {
+        $('#ing').innerHTML = items.length
+          ? items
+              .map(
+                (it) => `<div class="item" data-id="${it.id}"><div class="grow" data-edit="${it.id}"><div class="t">${esc(it.name)}</div><div class="s">${esc(it.label)}${it.p || it.c || it.f ? ` · P ${num(it.p, 1)} · C ${num(it.c, 1)} · G ${num(it.f, 1)}` : ''}</div></div>
+                <div class="amount small">${num(it.kcal)} kcal</div><button type="button" class="ghost icon sm" data-rm="${it.id}" aria-label="Quitar">✕</button></div>`
+              )
+              .join('')
+          : '<div class="small muted">Agrega lo que incluye la comida (ej: 2 rebanadas de pan integral, 150 g de pollo) y las calorías, proteínas, carbohidratos y grasas se calculan solas.</div>';
+        $('#auto-hint').textContent = items.length ? 'Calculado con los alimentos. Puedes ajustarlo a mano.' : '';
+      };
+      const closePicker = () => {
+        pk.hidden = true;
+        addBtn.hidden = false;
+        editId = null;
+      };
+      const picker = foodPicker(pk, {
+        label: 'Agregar a la comida',
+        onCancel: closePicker,
+        onPick({ food, qty, label, mode, amount }) {
+          const it = {
+            id: editId || uid(),
+            name: food.name,
+            label,
+            qty,
+            mode,
+            amount,
+            ...scaled(food, qty),
+            food: { name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0 },
+          };
+          if (editId) items = items.map((x) => (x.id === editId ? it : x));
+          else items = [...items, it];
+          closePicker();
+          picker.reset();
+          drawItems();
+          recalc();
+          toast(`${food.name}: ${num(it.kcal)} kcal`);
+        },
+      });
+      addBtn.onclick = () => {
+        editId = null;
+        picker.reset();
+        pk.hidden = false;
+        addBtn.hidden = true;
+        pk.querySelector('.pk-q')?.focus({ preventScroll: true });
+        pk.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      };
+      $('#ing').onclick = (e) => {
+        const rm = e.target.closest('[data-rm]');
+        const ed = e.target.closest('[data-edit]');
+        if (rm) {
+          items = items.filter((x) => x.id !== rm.dataset.rm);
+          drawItems();
+          recalc();
+          if (!items.length) for (const k of ['#kcal', '#p', '#c', '#f']) $(k).value = '';
+        } else if (ed) {
+          const it = items.find((x) => x.id === ed.dataset.edit);
+          editId = it.id;
+          picker.edit(it.food, it.mode, it.amount);
+          pk.hidden = false;
+          addBtn.hidden = true;
+          pk.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      };
+      drawItems();
+
       $('#save').onclick = () => {
         const data = {
           name: $('#name').value.trim(),
@@ -143,10 +215,11 @@ function mealSheet(meal) {
           p: gr($('#p').value),
           c: gr($('#c').value),
           f: gr($('#f').value),
+          items,
         };
         if (!data.name) return toast('Ponle un nombre a la comida');
         if (editing) Object.assign(meal, data);
-        else for (const i of selected.length ? selected : [day]) meals(i).push({ id: uid(), ...data });
+        else for (const i of selected.length ? selected : [day]) meals(i).push({ id: uid(), ...structuredClone(data) });
         save();
         close();
         render();
@@ -174,7 +247,7 @@ function copySheet() {
       bindPicker(sheet, selected);
       sheet.querySelector('#ok').addEventListener('click', () => {
         if (!selected.length) return toast('Elige al menos un día');
-        for (const i of selected) state.diet.plan[i] = meals(day).map((m) => ({ ...m, id: uid() }));
+        for (const i of selected) state.diet.plan[i] = meals(day).map((m) => ({ ...structuredClone(m), id: uid() }));
         save();
         close();
         toast('Comidas copiadas');
