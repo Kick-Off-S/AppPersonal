@@ -62,10 +62,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Cantidades a tu medida:</b> 2 rebanadas, ¾ taza, 150 g… las calorías se recalculan solas.</li>
-      <li><b>Alimentos de cada comida:</b> arma tus comidas del plan con alimentos; las calorías, proteínas, carbohidratos y grasas se llenan solas. Toca un alimento para cambiar su cantidad.</li>
-      <li>Formulario de comidas ordenado en iPhone.</li>
-      <li>De la 2.0: racha de dieta, macros, topes por categoría, compras en cuotas, exportar a Excel y recordatorio de respaldo.</li>
+      <li><b>Tamaños S / M / L / XL</b> en tortillas, huevos, frutas, papas, pan de molde y más: eliges el tamaño y las calorías se ajustan.</li>
+      <li><b>Más alimentos:</b> tortillas integrales, de maíz, de espinaca y proteicas, verduras, quesos, salsas, cecinas y más.</li>
+      <li><b>Manual con gramos:</b> copia la tabla nutricional del envase (por 100 g) y después indica cuántos gramos comiste.</li>
+      <li>Botones − / + para ajustar la cantidad sin teclado.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

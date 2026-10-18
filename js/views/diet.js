@@ -159,7 +159,7 @@ function mealSheet(meal) {
       const picker = foodPicker(pk, {
         label: 'Agregar a la comida',
         onCancel: closePicker,
-        onPick({ food, qty, label, mode, amount }) {
+        onPick({ food, qty, label, mode, amount, size }) {
           const it = {
             id: editId || uid(),
             name: food.name,
@@ -167,8 +167,9 @@ function mealSheet(meal) {
             qty,
             mode,
             amount,
+            size,
             ...scaled(food, qty),
-            food: { name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0 },
+            food: { name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0, ...(food.sizes ? { sizes: food.sizes } : {}) },
           };
           if (editId) items = items.map((x) => (x.id === editId ? it : x));
           else items = [...items, it];
@@ -198,7 +199,7 @@ function mealSheet(meal) {
         } else if (ed) {
           const it = items.find((x) => x.id === ed.dataset.edit);
           editId = it.id;
-          picker.edit(it.food, it.mode, it.amount);
+          picker.edit(it.food, it.mode, it.amount, it.size);
           pk.hidden = false;
           addBtn.hidden = true;
           pk.scrollIntoView({ block: 'nearest', behavior: 'smooth' });

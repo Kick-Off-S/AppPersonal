@@ -74,17 +74,29 @@ export function portionOf(food) {
   return { grams, gUnit, count, noun };
 }
 
-// Texto de la cantidad elegida: "2 rebanadas", "¾ taza", "150 g".
-export function amountLabel(food, mode, v) {
+// Tamaño por defecto: el que coincide con la porción base (si no, M).
+export function defaultSize(food) {
+  if (!food.sizes) return null;
+  const g = portionOf(food).grams;
+  return Object.keys(food.sizes).find((k) => food.sizes[k] === g) || ('M' in food.sizes ? 'M' : Object.keys(food.sizes)[0]);
+}
+
+// Proporción del tamaño elegido respecto a la porción base (ej: tortilla L 60 g / base 40 g = 1,5).
+const sizeRatio = (food, size) => (size && food.sizes?.[size] && portionOf(food).grams ? food.sizes[size] / portionOf(food).grams : 1);
+
+// Texto de la cantidad elegida: "2 rebanadas", "¾ taza", "150 g", "2 unidades L (120 g)".
+export function amountLabel(food, mode, v, size = null) {
   const pt = portionOf(food);
   if (mode === 'g') return `${num(v, 1)} ${pt.gUnit}`;
-  return `${fracStr(v)} ${v <= 1 ? singular(pt.noun) : plural(pt.noun)}`;
+  const txt = `${fracStr(v)} ${v <= 1 ? singular(pt.noun) : plural(pt.noun)}`;
+  if (!size || !food.sizes?.[size]) return txt;
+  return `${txt} ${size} (${num((v / pt.count) * food.sizes[size])} ${pt.gUnit})`;
 }
 
 // Multiplicador sobre la porción base (lo que se usa para calorías y macros).
-export function factorOf(food, mode, v) {
+export function factorOf(food, mode, v, size = null) {
   const pt = portionOf(food);
-  return mode === 'g' ? v / (pt.grams || 1) : v / pt.count;
+  return mode === 'g' ? v / (pt.grams || 1) : (v / pt.count) * sizeRatio(food, size);
 }
 
 // Calorías y macros de un alimento según el multiplicador.
@@ -94,13 +106,15 @@ export function scaled(food, qty) {
 }
 
 function recentFoods() {
+  const known = [...state.foods, ...BASE_FOODS];
   const seen = new Set();
   const out = [];
   for (const d of Object.keys(state.log).sort().reverse()) {
     for (const e of [...state.log[d]].reverse()) {
       if (e.per && !seen.has(e.name + e.unit)) {
         seen.add(e.name + e.unit);
-        out.push({ id: 'r' + out.length, name: e.name, unit: e.unit, ...e.per });
+        // si sigue existiendo en la base, se usa tal cual (conserva tamaños y valores al día)
+        out.push(known.find((f) => f.name === e.name && f.unit === e.unit) || { id: 'r' + out.length, name: e.name, unit: e.unit, ...e.per });
       }
       if (out.length >= 8) return out;
     }
@@ -175,15 +189,23 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     let mode = start?.mode && modes.includes(start.mode) ? start.mode : modes[0];
     const base = (m) => (m === 'g' ? pt.grams : pt.count);
     let v = start?.amount ?? base(mode);
+    let size = start?.size && food.sizes?.[start.size] ? start.size : defaultSize(food);
     const custom = state.foods.some((f) => f.id === food.id);
-    const editing = !!start;
+    const editing = !!start && !start.fresh;
     const modeName = (m) => (m === 'g' ? (pt.gUnit === 'ml' ? 'Mililitros' : 'Gramos') : plural(pt.noun).replace(/^./, (c) => c.toUpperCase()));
     const chips = (m) =>
-      m === 'g' ? [50, 100, 150, 200, 250] : pt.count === 1 ? [0.25, 0.5, 0.75, 1, 1.5, 2, 3] : [1, 2, 3, 4, 5, 6];
+      m === 'g' ? [50, 100, 150, 200, 250] : pt.count === 1 ? [0.25, 0.5, 0.75, 1, 1.5, 2] : [1, 2, 3, 4, 5, 6];
 
     body.innerHTML = `<div class="pk-food"><b>${esc(food.name)}</b>
         <div class="small muted">${esc(food.unit)} = ${num(food.kcal)} kcal${food.p || food.c || food.f ? ` · P ${num(food.p, 1)} · C ${num(food.c, 1)} · G ${num(food.f, 1)} g` : ''}</div></div>
       ${modes.length > 1 ? `<div class="seg pk-mode">${modes.map((m) => `<button type="button" data-m="${m}">${modeName(m)}</button>`).join('')}</div>` : ''}
+      ${
+        food.sizes
+          ? `<div class="pk-sizes"><span class="small muted">Tamaño</span><div class="seg sizes">${Object.entries(food.sizes)
+              .map(([k, g]) => `<button type="button" data-s="${k}"><b>${k}</b><small>${num(g)} ${pt.gUnit}</small></button>`)
+              .join('')}</div></div>`
+          : ''
+      }
       <label class="field" for="pk-qty">Cantidad <span class="pk-unit"></span></label>
       <div class="stepper"><button type="button" class="pk-minus" aria-label="Menos">−</button>
         <input id="pk-qty" class="pk-qty" inputmode="text" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -198,6 +220,11 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     const qc = body.querySelector('.qchips');
     const draw = () => {
       body.querySelectorAll('.pk-mode button').forEach((b) => b.classList.toggle('sel', b.dataset.m === mode));
+      const sz = body.querySelector('.pk-sizes');
+      if (sz) {
+        sz.hidden = mode === 'g'; // en gramos el tamaño no aplica
+        sz.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', b.dataset.s === size));
+      }
       body.querySelector('.pk-unit').textContent = `(${mode === 'g' ? pt.gUnit : plural(pt.noun)})`;
       qc.innerHTML = chips(mode)
         .map((c) => `<button type="button" class="chip ${Math.abs(c - v) < 1e-6 ? 'sel' : ''}" data-v="${c}">${mode === 'g' ? c : fracStr(c)}</button>`)
@@ -207,8 +234,8 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     const upd = () => {
       v = parseAmount(input.value);
       if (!v) return (tot.innerHTML = '<span class="muted small">Escribe una cantidad (ej: 2 · 0,75 · 3/4 · 1 1/2 · 150) o toca un botón</span>');
-      const s = scaled(food, factorOf(food, mode, v));
-      tot.innerHTML = `<div class="row between"><span class="muted">${esc(amountLabel(food, mode, v))}</span><span class="mid">${num(s.kcal)} kcal</span></div>
+      const s = scaled(food, factorOf(food, mode, v, size));
+      tot.innerHTML = `<div class="row between"><span class="muted">${esc(amountLabel(food, mode, v, size))}</span><span class="mid">${num(s.kcal)} kcal</span></div>
         ${s.p || s.c || s.f ? `<div class="small muted" style="text-align:right">Proteínas ${num(s.p, 1)} g · Carbohidratos ${num(s.c, 1)} g · Grasas ${num(s.f, 1)} g</div>` : ''}`;
       qc.querySelectorAll('.chip').forEach((b) => b.classList.toggle('sel', Math.abs(+b.dataset.v - v) < 1e-6));
     };
@@ -217,7 +244,8 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
       if (!a) return toast('Ingresa una cantidad válida');
       picked = null;
       start = null;
-      onPick({ food, qty: factorOf(food, mode, a), label: amountLabel(food, mode, a), mode, amount: a });
+      const sz = mode === 'g' ? null : size;
+      onPick({ food, qty: factorOf(food, mode, a, sz), label: amountLabel(food, mode, a, sz), mode, amount: a, size: sz });
     };
 
     input.value = mode === 'g' ? gStr(v) : fracStr(v);
@@ -245,10 +273,16 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
       const b = e.target.closest('button');
       if (!b || b.dataset.m === mode) return;
       // convierte la cantidad actual a la otra unidad (ej: 1 taza -> 160 g)
-      const factor = factorOf(food, mode, parseAmount(input.value) || base(mode));
+      const factor = factorOf(food, mode, parseAmount(input.value) || base(mode), size);
       mode = b.dataset.m;
-      v = Math.round(factor * base(mode) * 100) / 100;
+      v = Math.round((factor / factorOf(food, mode, 1, size)) * 100) / 100;
       input.value = mode === 'g' ? gStr(v) : fracStr(v);
+      draw();
+    });
+    body.querySelector('.pk-sizes')?.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      size = b.dataset.s;
       draw();
     });
     draw();
@@ -275,6 +309,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
 
   function manual(body) {
     body.innerHTML = `<label class="field">Nombre (opcional)<input class="mn-name" maxlength="60" enterkeyhint="next" placeholder="Ej: Almuerzo en el trabajo" autocomplete="off"></label>
+      <label class="field">Gramos de la porción (opcional)<input class="mn-g" inputmode="decimal" placeholder="Ej: 100 (si copias la tabla del envase)"></label>
       <label class="field">Calorías (kcal)<input class="mn-kcal" inputmode="numeric" enterkeyhint="done" placeholder="Ej: 450"></label>
       <div class="three"><label class="field">Proteínas (g)<input class="mn-p" inputmode="decimal" placeholder="Opcional"></label>
         <label class="field">Carbohidr. (g)<input class="mn-c" inputmode="decimal" placeholder="Opcional"></label>
@@ -288,10 +323,20 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
       const kcal = parseInt(body.querySelector('.mn-kcal').value, 10);
       if (!(kcal >= 0)) return toast('Ingresa las calorías');
       const g = (c) => Math.round(parseAmount(body.querySelector(c).value) * 10) / 10;
-      const food = { id: uid(), name: body.querySelector('.mn-name').value.trim() || 'Comida', unit: '1 porción', kcal, p: g('.mn-p'), c: g('.mn-c'), f: g('.mn-f') };
+      const grams = g('.mn-g');
+      // con gramos, después se puede ajustar la cantidad en gramos (ej: tabla "por 100 g" y comí 40 g)
+      const unit = grams ? `1 porción (${String(grams).replace('.', ',')} g)` : '1 porción';
+      const food = { id: uid(), name: body.querySelector('.mn-name').value.trim() || 'Comida', unit, kcal, p: g('.mn-p'), c: g('.mn-c'), f: g('.mn-f') };
       if (body.querySelector('.mn-keep').checked) {
         state.foods.unshift(food);
         save();
+      }
+      if (grams) {
+        // Pasamos directo a elegir cuánto comiste (en gramos o porciones).
+        picked = food;
+        start = { mode: 'g', amount: grams, fresh: true };
+        tab = 'search';
+        return shell();
       }
       onPick({ food, qty: 1, label: '1 porción', mode: 'unit', amount: 1 });
     };
@@ -300,6 +345,6 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
   shell();
   return {
     reset: () => ((picked = null), (start = null), (tab = 'search'), shell()),
-    edit: (food, mode, amount) => ((tab = 'search'), (picked = food), (start = { mode, amount }), shell()),
+    edit: (food, mode, amount, size) => ((tab = 'search'), (picked = food), (start = { mode, amount, size }), shell()),
   };
 }
