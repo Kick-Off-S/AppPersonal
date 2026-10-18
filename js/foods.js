@@ -1,0 +1,95 @@
+// Base de alimentos comunes en Chile. Valores APROXIMADOS por porción: [nombre, porción, kcal, proteína g, carbohidratos g, grasa g]
+// Sirve para estimar, no para medir con precisión. Cada usuario puede agregar los suyos.
+const RAW = [
+  // Panes y cereales
+  ['Pan marraqueta', '1 unidad (90 g)', 250, 8, 52, 1],
+  ['Pan hallulla', '1 unidad (90 g)', 280, 8, 50, 5],
+  ['Pan de molde blanco', '1 rebanada', 75, 2, 14, 1],
+  ['Pan de molde integral', '1 rebanada', 70, 3, 12, 1],
+  ['Avena en hojuelas', '3 cdas (30 g)', 115, 4, 20, 2],
+  ['Cereal de maíz', '1 taza (30 g)', 115, 2, 26, 0],
+  ['Barra de cereal', '1 unidad', 100, 1.5, 19, 2.5],
+  ['Galletas dulces', '2 unidades', 100, 1, 15, 4],
+  ['Arroz cocido', '1 taza (160 g)', 210, 4, 45, 0.5],
+  ['Fideos cocidos', '1 taza (140 g)', 220, 8, 43, 1],
+  ['Quinoa cocida', '1 taza (185 g)', 220, 8, 39, 3.5],
+  ['Papa cocida', '1 mediana (150 g)', 130, 3, 30, 0],
+  ['Puré de papas', '1 taza (200 g)', 190, 4, 30, 6],
+  ['Papas fritas', '1 porción (100 g)', 310, 4, 40, 15],
+  ['Choclo cocido', '1 unidad', 100, 3, 21, 1.5],
+  // Legumbres
+  ['Lentejas cocidas', '1 taza (200 g)', 230, 18, 40, 1],
+  ['Porotos cocidos', '1 taza (180 g)', 230, 15, 40, 1],
+  ['Garbanzos cocidos', '1 taza (165 g)', 270, 15, 45, 4],
+  // Carnes, pescados y huevos
+  ['Pechuga de pollo cocida', '100 g', 165, 31, 0, 4],
+  ['Trutro de pollo', '1 unidad (carne ~100 g)', 210, 26, 0, 11],
+  ['Pechuga de pavo', '100 g', 135, 30, 0, 1],
+  ['Carne de vacuno (posta/lomo)', '100 g cocida', 200, 28, 0, 9],
+  ['Carne molida', '100 g cocida', 250, 26, 0, 16],
+  ['Lomo de cerdo', '100 g cocido', 210, 27, 0, 11],
+  ['Merluza', '150 g', 135, 28, 0, 2],
+  ['Salmón', '150 g', 310, 33, 0, 19],
+  ['Atún en agua', '1 lata (120 g)', 120, 26, 0, 1],
+  ['Huevo', '1 unidad', 75, 6, 0.5, 5],
+  ['Jamón de pavo', '1 feta (20 g)', 20, 3, 0.5, 0.5],
+  ['Proteína whey', '1 scoop (30 g)', 120, 24, 3, 1.5],
+  // Lácteos
+  ['Leche entera', '1 taza (200 ml)', 125, 6.5, 9.5, 6.5],
+  ['Leche descremada', '1 taza (200 ml)', 70, 7, 10, 0.5],
+  ['Yogurt natural', '1 pote (125 g)', 75, 5, 8, 3],
+  ['Yogurt de frutas', '1 pote (125 g)', 110, 4, 19, 2],
+  ['Yogurt griego natural', '1 pote (150 g)', 100, 10, 5, 4],
+  ['Queso gauda', '1 lámina (20 g)', 70, 5, 0, 5.5],
+  ['Queso fresco', '50 g', 110, 8, 1, 8],
+  // Grasas y untables
+  ['Palta', '1/2 unidad (70 g)', 115, 1.5, 6, 10.5],
+  ['Aceite de oliva', '1 cda (10 ml)', 90, 0, 0, 10],
+  ['Mantequilla', '1 cdta (5 g)', 36, 0, 0, 4],
+  ['Mermelada', '1 cda (20 g)', 50, 0, 13, 0],
+  ['Manjar', '1 cda (20 g)', 65, 1.5, 11, 1.5],
+  ['Miel', '1 cdta (7 g)', 20, 0, 5, 0],
+  ['Azúcar', '1 cdta (5 g)', 20, 0, 5, 0],
+  // Frutas
+  ['Plátano', '1 mediano', 105, 1, 27, 0.4],
+  ['Manzana', '1 mediana', 95, 0.5, 25, 0.3],
+  ['Naranja', '1 mediana', 62, 1, 15, 0],
+  ['Pera', '1 mediana', 100, 0.6, 27, 0.2],
+  ['Durazno', '1 mediano', 60, 1.5, 15, 0.4],
+  ['Kiwi', '1 unidad', 42, 0.8, 10, 0.4],
+  ['Uvas', '1 taza (150 g)', 100, 1, 27, 0],
+  ['Frutillas', '1 taza (150 g)', 50, 1, 12, 0.5],
+  ['Sandía', '1 taza (150 g)', 45, 1, 11, 0],
+  // Frutos secos
+  ['Nueces', '1 puñado (28 g)', 185, 4, 4, 18],
+  ['Almendras', '1 puñado (25 g)', 145, 5, 5, 12.5],
+  ['Maní', '1 puñado (30 g)', 170, 7, 5, 14],
+  // Verduras
+  ['Ensalada lechuga y tomate', '1 plato (150 g)', 30, 1.5, 6, 0.3],
+  ['Tomate', '1 unidad', 22, 1, 5, 0.2],
+  ['Zanahoria', '1 unidad', 25, 0.6, 6, 0],
+  ['Brócoli cocido', '1 taza', 55, 4, 11, 0.6],
+  ['Verduras cocidas', '1 taza', 50, 2, 10, 0.3],
+  // Platos y comida rápida
+  ['Cazuela de vacuno', '1 plato', 400, 25, 35, 18],
+  ['Pastel de choclo', '1 porción', 480, 22, 50, 20],
+  ['Tallarines con salsa de tomate', '1 plato', 400, 13, 70, 8],
+  ['Empanada de pino (horno)', '1 unidad', 380, 13, 38, 19],
+  ['Empanada de queso (frita)', '1 unidad', 350, 10, 30, 21],
+  ['Completo italiano', '1 unidad', 520, 16, 42, 32],
+  ['Pizza', '1 porción', 285, 12, 36, 10],
+  ['Sopaipilla', '1 unidad', 180, 3, 22, 9],
+  ['Sushi', '1 pieza', 50, 2, 8, 1],
+  // Bebidas y otros
+  ['Bebida cola', '1 vaso (250 ml)', 105, 0, 27, 0],
+  ['Bebida cola zero', '1 vaso (250 ml)', 0, 0, 0, 0],
+  ['Jugo de naranja natural', '1 vaso (200 ml)', 90, 1.5, 21, 0.4],
+  ['Cerveza', '1 lata (350 ml)', 150, 1, 13, 0],
+  ['Vino', '1 copa (150 ml)', 125, 0, 4, 0],
+  ['Café o té sin azúcar', '1 taza', 5, 0, 1, 0],
+  ['Chocolate', '2 cuadritos (20 g)', 105, 1, 12, 6],
+];
+
+export const BASE_FOODS = RAW.map(([name, unit, kcal, p, c, f], i) => ({ id: 'b' + i, name, unit, kcal, p, c, f }));
+
+export const MEALS = ['Desayuno', 'Almuerzo', 'Once', 'Cena', 'Snack'];
