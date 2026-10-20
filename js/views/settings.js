@@ -1,4 +1,4 @@
-import { state, save, replaceState, defaults, APP_VERSION } from '../store.js';
+import { state, save, replaceState, defaults, APP_VERSION, VERSION } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast } from '../util.js';
 import { MODULES, isOn, setModule } from '../modules.js';
@@ -237,6 +237,7 @@ async function restore(file) {
       data = JSON.parse(text);
     }
     if (!data || typeof data !== 'object') throw new Error('formato');
+    if (Number(data.v) > VERSION && !confirm('Este respaldo es de una versión más nueva de la app. Actualiza la app antes de restaurarlo para no perder datos. ¿Restaurar igual?')) return;
     const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-CL') : 'fecha desconocida';
     if (!confirm(`Se reemplazarán los datos actuales por los del respaldo (${when}). ¿Continuar?`)) return;
     await replaceState(data);

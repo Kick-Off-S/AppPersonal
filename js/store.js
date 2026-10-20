@@ -5,9 +5,10 @@ const DB_NAME = 'gestion-personal';
 const STORE = 'kv';
 const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
-export const VERSION = 1;
+// Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
+export const VERSION = 2;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '3.6';
+export const APP_VERSION = '4.0';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -62,7 +63,38 @@ export function clean(v, key = '') {
   return typeof v === 'number' || typeof v === 'boolean' || v === null ? v : undefined;
 }
 
-// Completa lo que falte (por si un respaldo viene de una versión anterior) y limpia los datos.
+// ---------- migraciones ----------
+// Cada paso lleva los datos de la versión anterior a "to". Se aplican en orden y una sola vez
+// (los datos guardan su versión en "v"). Deben tolerar datos incompletos.
+const weekday = (s) => {
+  const [y, m, d] = s.split('-').map(Number);
+  return (new Date(y, m - 1, d).getDay() + 6) % 7;
+};
+export const MIGRATIONS = [
+  {
+    to: 2,
+    what: 'Dieta: guardar las calorías y macros de cada comida cumplida (el historial ya no depende del plan actual)',
+    run(d) {
+      const plan = d.diet?.plan || {};
+      for (const [date, marks] of Object.entries(d.diet?.done || {})) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !marks || typeof marks !== 'object') continue;
+        for (const [id, v] of Object.entries(marks)) {
+          if (v !== true) continue;
+          const m = (plan[weekday(date)] || []).find((x) => x.id === id);
+          if (m) marks[id] = { name: m.name, kcal: m.kcal || 0, p: m.p || 0, c: m.c || 0, f: m.f || 0 };
+        }
+      }
+    },
+  },
+];
+export function migrate(d) {
+  let v = Number(d.v) || 1;
+  for (const step of MIGRATIONS) if (v < step.to) step.run(d), (v = step.to);
+  d.v = v;
+  return d;
+}
+
+// Completa lo que falte (por si un respaldo viene de una versión anterior), limpia y migra los datos.
 export function withDefaults(data) {
   const base = defaults();
   const d = clean(data && typeof data === 'object' ? data : {});
@@ -92,7 +124,8 @@ export function withDefaults(data) {
   const firstAcc = out.savingsAccounts[0].id;
   for (const m of out.savings) if (!m.acc || !out.savingsAccounts.some((a) => a.id === m.acc)) m.acc = firstAcc;
   out.app = base.app;
-  out.v = VERSION;
+  out.v = Number(d.v) || 1; // sin versión = datos de la primera versión
+  migrate(out);
   return out;
 }
 

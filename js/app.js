@@ -174,9 +174,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Respaldo con contraseña:</b> el archivo queda cifrado (AES-256). Aunque lo envíes por WhatsApp o correo, nadie puede leer tus datos sin la contraseña.</li>
-      <li><b>Bloqueo con PIN y Face ID:</b> en Ajustes → Privacidad. Al salir de la app el contenido se oculta en la vista de apps abiertas.</li>
-      <li>Más protección por dentro: los respaldos se revisan al restaurarlos y la app solo ejecuta su propio código.</li>
+      <li><b>📷 Escanear código de barras:</b> en el buscador de alimentos, toca la cámara y apunta al envase. Trae las calorías y macros de Open Food Facts y lo guarda en tus alimentos (la próxima vez funciona sin internet).</li>
+      <li><b>Compartir e importar el plan de dieta</b> como archivo (Dieta → abajo): ideal para pasar el plan del nutricionista o compartirlo con alguien.</li>
+      <li><b>Tu historial queda fijo:</b> las comidas que marcas guardan sus calorías de ese día, así cambiar el plan ya no altera tus registros pasados.</li>
+      <li>De la 3.6: respaldo con contraseña y bloqueo con PIN / Face ID (Ajustes → Privacidad).</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

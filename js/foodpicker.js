@@ -4,6 +4,7 @@
 import { state, save } from './store.js';
 import { BASE_FOODS } from './foods.js';
 import { esc, uid, num, toast } from './util.js';
+import { scanBarcode, lookupBarcode } from './scanner.js';
 
 const plain = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -147,6 +148,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
   let start = null; // { mode, amount } al editar
   // preparación en curso en "Armar" (se mantiene al cambiar de pestaña)
   let recipe = { id: null, name: '', items: [], keep: false };
+  let pendingCode = null; // código escaneado que no estaba en la base (se guarda con el alimento manual)
 
   const tabs = [['search', 'Buscar'], ...(build ? [['build', 'Armar']] : []), ['manual', 'Manual']];
   const shell = () => {
@@ -166,7 +168,8 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
   };
 
   function search(body) {
-    body.innerHTML = `<input class="pk-q" type="search" placeholder="Buscar alimento (ej: pan, pollo, palta)" autocomplete="off" autocapitalize="off"><div class="results"></div>
+    body.innerHTML = `<div class="searchrow"><input class="pk-q" type="search" placeholder="Buscar alimento (ej: pan, pollo, palta)" autocomplete="off" autocapitalize="off">
+      <button type="button" class="pk-scan" aria-label="Escanear código de barras" title="Escanear código de barras">📷</button></div><div class="results"></div>
       ${onCancel ? '<button type="button" class="ghost block pk-cancel">Cancelar</button>' : ''}`;
     const q = body.querySelector('.pk-q');
     const res = body.querySelector('.results');
@@ -197,6 +200,26 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
       shell();
     };
     body.querySelector('.pk-cancel')?.addEventListener('click', onCancel);
+    body.querySelector('.pk-scan').onclick = async () => {
+      const code = await scanBarcode();
+      if (!code) return;
+      toast('Buscando el producto…');
+      const r = await lookupBarcode(code);
+      if (r.food) {
+        if (r.fresh) toast(`${r.food.name}: guardado en tus alimentos ✦`);
+        picked = r.food;
+        start = null;
+        return shell();
+      }
+      if (r.offline) return toast('Sin conexión: no se pudo buscar el producto');
+      // no está en Open Food Facts: se registra a mano y queda asociado al código para la próxima vez
+      pendingCode = code;
+      tab = 'manual';
+      shell();
+      const nm = host.querySelector('.mn-name');
+      if (nm && r.name) nm.value = r.name;
+      toast('No está en la base pública. Regístralo una vez con los datos del envase.');
+    };
     show();
   }
 
@@ -489,7 +512,8 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
       <div class="three"><label class="field">Proteínas (g)<input class="mn-p" inputmode="decimal" placeholder="Opcional"></label>
         <label class="field">Carbohidr. (g)<input class="mn-c" inputmode="decimal" placeholder="Opcional"></label>
         <label class="field">Grasas (g)<input class="mn-f" inputmode="decimal" placeholder="Opcional"></label></div>
-      <label class="row" style="margin-top:14px"><input type="checkbox" class="mn-keep" style="width:22px;min-height:22px;margin:0"> <span>Guardar como alimento mío</span></label>
+      ${pendingCode ? `<div class="banner small" style="margin:12px 0 0">Código ${esc(pendingCode)}: se guardará con este alimento para que la próxima vez lo encuentres al escanear.</div>` : ''}
+      <label class="row" style="margin-top:14px"><input type="checkbox" class="mn-keep" style="width:22px;min-height:22px;margin:0" ${pendingCode ? 'checked' : ''}> <span>Guardar como alimento mío</span></label>
       <div class="actions">${onCancel ? '<button type="button" class="ghost mn-cancel">Cancelar</button>' : ''}<button type="button" class="primary mn-ok">${esc(label)}</button></div>`;
     body.querySelector('.mn-cancel')?.addEventListener('click', onCancel);
     const ok = () => body.querySelector('.mn-ok').click();
@@ -501,7 +525,8 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
       const grams = g('.mn-g');
       // con gramos, después se puede ajustar la cantidad en gramos (ej: tabla "por 100 g" y comí 40 g)
       const unit = grams ? `1 porción (${String(grams).replace('.', ',')} g)` : '1 porción';
-      const food = { id: uid(), name: body.querySelector('.mn-name').value.trim() || 'Comida', unit, kcal, p: g('.mn-p'), c: g('.mn-c'), f: g('.mn-f') };
+      const food = { id: uid(), name: body.querySelector('.mn-name').value.trim() || 'Comida', unit, kcal, p: g('.mn-p'), c: g('.mn-c'), f: g('.mn-f'), ...(pendingCode ? { barcode: pendingCode } : {}) };
+      pendingCode = null;
       if (body.querySelector('.mn-keep').checked) {
         state.foods.unshift(food);
         save();

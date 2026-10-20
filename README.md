@@ -45,6 +45,13 @@ Con más de 5 secciones, la barra muestra 4 + "Más".
 Racha de dieta, proteínas/carbohidratos/grasas, topes por categoría, compras en cuotas, exportar gastos a Excel,
 recordatorio semanal de respaldo, aviso de versión nueva y más comida chilena en el buscador.
 
+## Novedades 4.0
+- **Código de barras**: `js/scanner.js` usa ZXing (`js/vendor/zxing.min.js`, Apache-2.0, se carga solo al escanear) y
+  consulta Open Food Facts (solo se envía el número del código). El producto queda en "mis alimentos" con su `barcode`.
+- **Plan de dieta** exportable/importable como archivo (`kind: "diet-plan"`), limpiado igual que los respaldos.
+- **Migraciones**: `VERSION` (esquema) y `MIGRATIONS` en `js/store.js`. Para cambiar la forma de los datos, sube
+  `VERSION` y agrega un paso `{ to, what, run(d) }`. La v2 guarda una foto de cada comida cumplida.
+
 ## Pruebas
 ```bash
 npm test

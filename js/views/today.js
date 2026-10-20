@@ -1,5 +1,5 @@
 import { state, save } from '../store.js';
-import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight } from '../calc.js';
+import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight, mealSnapshot } from '../calc.js';
 import { foodPicker, scaled } from '../foodpicker.js';
 import { mealDetail, macroChips } from './diet.js';
 import { isOn } from '../modules.js';
@@ -155,7 +155,7 @@ function onClick(e) {
   else if (act === 'toggle') {
     const d = (state.diet.done[date] ||= {});
     if (d[id]) delete d[id];
-    else d[id] = true;
+    else d[id] = mealSnapshot(planFor(date).find((m) => m.id === id) || {});
     if (!Object.keys(d).length) delete state.diet.done[date];
     vibrate();
     save();

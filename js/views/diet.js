@@ -1,8 +1,8 @@
 // Plan de dieta por día de la semana. Cada comida puede tener calorías: al marcarla como cumplida
 // en "Hoy", esas calorías se suman al día automáticamente.
-import { state, save } from '../store.js';
+import { state, save, clean } from '../store.js';
 import { foodPicker, scaled } from '../foodpicker.js';
-import { esc, uid, num, openSheet, toast, todayStr, weekdayIndex, DAYS, DAYS_SHORT } from '../util.js';
+import { esc, uid, num, openSheet, toast, todayStr, weekdayIndex, shareFile, DAYS, DAYS_SHORT } from '../util.js';
 
 let root;
 let day = 0; // 0 = lunes
@@ -77,7 +77,13 @@ function render() {
 
   root.innerHTML = `<div class="chips">${chips}</div>${body}
     <div class="actions"><button class="primary wide" data-act="add">+ Agregar comida</button>
-    ${list.length ? '<button data-act="copy">Copiar día</button>' : ''}</div>`;
+    ${list.length ? '<button data-act="copy">Copiar día</button>' : ''}</div>
+    <div class="row" style="justify-content:center;gap:18px;margin-top:14px">
+      ${Object.values(state.diet.plan).some((d) => d.length) ? '<button class="ghost sm" data-act="share">Compartir plan</button>' : ''}
+      <button class="ghost sm" data-act="import">Importar plan</button>
+    </div>
+    <input type="file" id="planfile" accept=".json,application/json" hidden>`;
+  root.querySelector('#planfile').onchange = (e) => importPlan(e.target.files[0], e.target);
 }
 
 function onClick(e) {
@@ -91,6 +97,60 @@ function onClick(e) {
   else if (act === 'edit') mealSheet(meals(day).find((m) => m.id === id));
   else if (act === 'copy') copySheet();
   else if (act === 'example') loadExample();
+  else if (act === 'share') sharePlan();
+  else if (act === 'import') root.querySelector('#planfile').click();
+}
+
+// ---------- compartir / importar el plan ----------
+// Un archivo con las comidas de la semana (y sus alimentos). Sirve para pasar el plan a otro teléfono,
+// a un amigo, o recibirlo del nutricionista. No incluye nada más (ni calorías del día, ni finanzas).
+const planSummary = (plan) => {
+  const days = Object.values(plan).filter((d) => d?.length);
+  const meals = days.reduce((a, d) => a + d.length, 0);
+  const kcal = days.length ? Math.round(days.reduce((a, d) => a + d.reduce((x, m) => x + (m.kcal || 0), 0), 0) / days.length) : 0;
+  return { days: days.length, meals, kcal };
+};
+
+async function sharePlan() {
+  const author = state.settings.name || '';
+  const payload = { app: 'gestion-personal', kind: 'diet-plan', v: 1, author, exportedAt: new Date().toISOString(), kcalGoal: state.settings.kcalGoal || 0, plan: state.diet.plan };
+  try {
+    if (await shareFile(`plan-dieta${author ? '-' + author.toLowerCase().replace(/[^a-z0-9]+/g, '-') : ''}.json`, JSON.stringify(payload), 'application/json', 'Plan de dieta')) toast('Plan listo para compartir');
+  } catch {
+    toast('No se pudo compartir el plan');
+  }
+}
+
+async function importPlan(file, input) {
+  if (!file) return;
+  try {
+    const p = JSON.parse(await file.text());
+    if (p?.app !== 'gestion-personal' || p.kind !== 'diet-plan' || !p.plan || typeof p.plan !== 'object') throw new Error('formato');
+    // mismo limpiado que los respaldos: un archivo ajeno no puede inyectar código
+    const plan = clean(p.plan);
+    const sum = planSummary(plan);
+    openSheet(
+      `<h3>Importar plan de dieta</h3>
+      <div class="card" style="box-shadow:none;margin:8px 0">${p.author ? `<b>Plan de ${esc(p.author)}</b><br>` : ''}
+        <span class="small muted">${sum.days} día${sum.days === 1 ? '' : 's'} · ${sum.meals} comidas · ~${num(sum.kcal)} kcal por día${p.kcalGoal ? ` · meta ${num(p.kcalGoal)} kcal` : ''}</span></div>
+      <p class="small muted">Reemplaza las comidas de tu plan actual (si quieres conservarlo, compártelo antes como archivo). Lo que ya marcaste como cumplido en días anteriores se mantiene en tu historial.</p>
+      ${p.kcalGoal ? `<label class="cuotas"><input type="checkbox" id="goal" checked> <span>Usar también su meta de ${num(p.kcalGoal)} kcal</span></label>` : ''}
+      <div class="actions"><button class="ghost" data-close>Cancelar</button><button class="primary" id="ok">Reemplazar mi plan</button></div>`,
+      (sheet, close) =>
+        (sheet.querySelector('#ok').onclick = () => {
+          for (let i = 0; i < 7; i++) state.diet.plan[i] = (plan[i] || []).map((m) => ({ ...m, id: uid() }));
+          if (p.kcalGoal && sheet.querySelector('#goal')?.checked) state.settings.kcalGoal = +p.kcalGoal || state.settings.kcalGoal;
+          save();
+          close();
+          toast('Plan importado');
+          render();
+        })
+    );
+  } catch {
+    toast('Ese archivo no es un plan de dieta válido');
+  } finally {
+    input.value = '';
+  }
 }
 
 function dayPicker(selected, exclude) {

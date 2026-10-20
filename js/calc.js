@@ -8,10 +8,27 @@ export const extrasFor = (d) => state.log[d] || [];
 
 const sum = (list, k) => list.reduce((a, x) => a + (x[k] || 0), 0);
 
+// Valores que se guardan al marcar una comida como cumplida (así el historial no cambia si cambia el plan).
+export const mealSnapshot = (m) => ({ name: m.name, kcal: m.kcal || 0, p: m.p || 0, c: m.c || 0, f: m.f || 0 });
+
+// Comidas cumplidas del día con sus valores. Hoy y días futuros usan el plan vigente (si editas una comida
+// hoy, se refleja); los días pasados usan la foto guardada al marcarla. Las marcas antiguas sin foto
+// (true) se buscan en el plan.
+export function doneMealsOf(d) {
+  const plan = planFor(d);
+  const live = d >= todayStr();
+  return Object.entries(doneFor(d))
+    .map(([id, v]) => {
+      const m = plan.find((x) => x.id === id);
+      if (v && typeof v === 'object') return live && m ? m : { id, ...v };
+      return v ? m : null;
+    })
+    .filter(Boolean);
+}
+
 export function dayTotals(d) {
   const plan = planFor(d);
-  const done = doneFor(d);
-  const doneMeals = plan.filter((m) => done[m.id]);
+  const doneMeals = doneMealsOf(d);
   const extras = extrasFor(d);
   const diet = sum(doneMeals, 'kcal');
   const extra = sum(extras, 'kcal');
@@ -20,7 +37,8 @@ export function dayTotals(d) {
     extra,
     total: diet + extra,
     hasData: doneMeals.length > 0 || extras.length > 0,
-    mealsTotal: plan.length,
+    // si el plan cambió después, un día pasado puede tener más comidas cumplidas que las del plan actual
+    mealsTotal: Math.max(plan.length, doneMeals.length),
     mealsDone: doneMeals.length,
     missingKcal: plan.filter((m) => !m.kcal).length,
     planKcal: sum(plan, 'kcal'),
@@ -33,8 +51,7 @@ export const latestWeight = () => [...state.weight].sort((a, b) => a.date.locale
 
 // Proteínas, carbohidratos y grasas (g) del día: comidas de la dieta cumplidas que los tengan + comidas extra.
 export function dayMacros(d) {
-  const done = doneFor(d);
-  const list = [...planFor(d).filter((m) => done[m.id]), ...extrasFor(d)];
+  const list = [...doneMealsOf(d), ...extrasFor(d)];
   const r1 = (v) => Math.round(v * 10) / 10;
   const p = r1(sum(list, 'p')), c = r1(sum(list, 'c')), f = r1(sum(list, 'f'));
   return { p, c, f, any: p + c + f > 0 };
