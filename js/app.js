@@ -214,11 +214,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Guardado más seguro:</b> si el teléfono falla al leer tus datos, la app ya no escribe encima; y siempre se carga la copia más reciente.</li>
-      <li><b>Deshacer:</b> antes de restaurar un respaldo o borrar todo se guarda una copia; puedes volver atrás en Ajustes → Respaldo.</li>
-      <li><b>PIN más protegido:</b> los intentos fallidos se recuerdan aunque cierres la app, y el PIN ya no viaja en los respaldos.</li>
-      <li>Respaldos con contraseña de al menos 10 caracteres y cifrado más fuerte.</li>
-      <li>Si una sección falla, verás una pantalla para guardar un respaldo en vez de una pantalla rota.</li>
+      <li><b>Historial más fiel:</b> editar, borrar o agregar comidas del plan (o editar una rutina) ya no cambia tus días pasados, tu racha ni tu % cumplido.</li>
+      <li><b>Calorías de ejercicio más realistas:</b> ahora se descuenta el gasto en reposo (antes se sobrestimaba).</li>
+      <li><b>Finanzas:</b> pasar el sueldo a variable conserva los meses anteriores; editar un sobrante ya no lo cambia de mes; editar un préstamo o eliminar una cuenta de ahorro deja todo cuadrado.</li>
+      <li>La app corrige sola datos dañados de respaldos o planes importados.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

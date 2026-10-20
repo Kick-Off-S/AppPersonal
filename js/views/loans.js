@@ -141,7 +141,7 @@ export function loanSheet(l, onDone) {
         ev.preventDefault();
         const f = new FormData(form);
         const amount = parseMoney(f.get('amount'));
-        const n = Math.min(120, parseInt(f.get('n'), 10) || 0);
+        const n = Math.max(0, Math.min(120, parseInt(f.get('n'), 10) || 0));
         if (!amount || !n) return toast('Completa el monto y el número de cuotas');
         const data = {
           dir,
@@ -151,7 +151,7 @@ export function loanSheet(l, onDone) {
           n,
           cuota: parseMoney(f.get('cuota')) || Math.round(amount / n),
           start: f.get('start'),
-          prepaid: Math.min(n, parseInt(f.get('prepaid'), 10) || 0),
+          prepaid: Math.max(0, Math.min(n, parseInt(f.get('prepaid'), 10) || 0)),
           counted: !!f.get('counted'),
           note: f.get('note').trim(),
         };
@@ -161,6 +161,14 @@ export function loanSheet(l, onDone) {
           if (l.dir !== dir) state.finance.expenses = state.finance.expenses.filter((e) => e.loanId !== l.id);
           Object.assign(l, data);
           for (const e of state.finance.expenses.filter((x) => x.loanId === l.id)) e.amount = data.cuota;
+          // cuotas pagadas que quedaron fuera del nuevo calendario (o dentro de "ya pagadas")
+          const sched = scheduleOf(l);
+          const stray = state.finance.expenses.filter((e) => e.loanId === l.id && !sched.some((c) => c.ym === e.cuotaYm && c.i > (l.prepaid || 0)));
+          if (stray.length) {
+            if (confirm(`${stray.length} cuota${stray.length > 1 ? 's pagadas quedan' : ' pagada queda'} fuera del nuevo calendario. ¿Borrar ${stray.length > 1 ? 'esos gastos' : 'ese gasto'}? (Cancelar = dejarlos como gastos normales)`))
+              state.finance.expenses = state.finance.expenses.filter((e) => !stray.includes(e));
+            else for (const e of stray) delete e.loanId, delete e.cuotaYm;
+          }
         } else loans().push({ id: uid(), received: {}, ...data });
         save();
         close();

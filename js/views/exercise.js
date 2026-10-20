@@ -1,6 +1,6 @@
 // Ejercicio: rutinas que se repiten por día de la semana (como el plan de dieta), con ejercicios que se marcan
 // como hechos cada día, y actividad extra (caminar, fútbol…) con calorías quemadas estimadas.
-import { state, save } from '../store.js';
+import { state, save, routineSnap } from '../store.js';
 import { latestWeight } from '../calc.js';
 import { esc, uid, num, openSheet, toast, todayStr, addDays, dayLabel, weekdayIndex, shortDate, vibrate, DAYS, DAYS_SHORT } from '../util.js';
 
@@ -32,7 +32,8 @@ const COMMON = [
 
 const ex = () => state.exercise;
 const bodyKg = () => latestWeight()?.kg || 70;
-const kcalFor = (met, mins) => Math.round(met * bodyKg() * (mins / 60));
+// MET − 1: se descuenta el gasto en reposo, que ya está dentro de la meta diaria de calorías.
+const kcalFor = (met, mins) => Math.max(0, Math.round((met - 1) * bodyKg() * (mins / 60)));
 
 // Rutinas del día: las programadas para ese día de la semana + las que se agregaron ese día a mano.
 export function routinesFor(d) {
@@ -41,17 +42,25 @@ export function routinesFor(d) {
   return ex().routines.filter((r) => r.days.includes(wd) || extra.includes(r.id));
 }
 const doneOf = (d, rid) => ex().done[d]?.[rid] || {};
+// Datos de la rutina para un día: los días pasados usan la foto guardada al marcarla (así editar la
+// rutina no cambia el historial); hoy y días futuros, la rutina actual.
+const snapOf = (d, r) => (d < todayStr() && ex().snap?.[d]?.[r.id]) || routineSnap(r, bodyKg());
 export function routineProgress(d, r) {
   const done = doneOf(d, r.id);
-  const n = r.items.filter((it) => done[it.id]).length;
-  return { n, total: r.items.length };
+  if (d < todayStr() && ex().snap?.[d]?.[r.id]) {
+    const total = ex().snap[d][r.id].total;
+    return { n: Math.min(total, Object.keys(done).length), total };
+  }
+  return { n: r.items.filter((it) => done[it.id]).length, total: r.items.length };
 }
+// Al marcar algo de una rutina se guarda su foto para ese día.
+const keepSnap = (r) => ((ex().snap ||= {})[date] ||= {})[r.id] = routineSnap(r, bodyKg());
 // Calorías quemadas en el día: rutinas (proporcional a lo hecho) + actividades extra.
 export function burnedFor(d) {
   let k = 0;
   for (const r of routinesFor(d)) {
     const { n, total } = routineProgress(d, r);
-    if (n && total) k += kcalFor(INTENSITY[r.intensity || 'moderada'].met, r.mins || 45) * (n / total);
+    if (n && total) k += snapOf(d, r).kcal * (n / total);
   }
   for (const a of ex().log[d] || []) k += a.kcal || 0;
   return Math.round(k);
@@ -60,7 +69,7 @@ const minsFor = (d) => {
   let m = 0;
   for (const r of routinesFor(d)) {
     const { n, total } = routineProgress(d, r);
-    if (n && total) m += (r.mins || 45) * (n / total);
+    if (n && total) m += snapOf(d, r).mins * (n / total);
   }
   for (const a of ex().log[d] || []) m += a.mins || 0;
   return Math.round(m);
@@ -197,6 +206,7 @@ function onClick(e) {
     const it = r.items.find((x) => x.id === id);
     const day = (ex().done[date] ||= {});
     const map = (day[rid] ||= {});
+    keepSnap(r);
     if (map[id]) delete map[id];
     else {
       map[id] = it.kg ? { kg: it.kg } : {};
@@ -208,6 +218,7 @@ function onClick(e) {
   } else if (act === 'all') {
     const r = ex().routines.find((x) => x.id === rid);
     const map = ((ex().done[date] ||= {})[rid] ||= {});
+    keepSnap(r);
     for (const it of r.items) map[it.id] ||= it.kg ? { kg: it.kg } : {};
     vibrate();
     toast(`¡${r.name} completa! 💪`);
@@ -249,6 +260,7 @@ function detailSheet(rid, id) {
         it.kg = kg;
         it.reps = sheet.querySelector('#reps').value.trim();
         ((ex().done[date] ||= {})[rid] ||= {})[id] = kg ? { kg } : {};
+        keepSnap(r);
         if (prev && kg > prev.kg) toast(`¡Nueva marca! +${num(kg - prev.kg, 1)} kg 🏆`);
         save();
         close();

@@ -222,7 +222,17 @@ function accountSheet(acc) {
         if (accounts().length <= 1) return toast('Debe quedar al menos una cuenta');
         const n = state.savings.filter((m) => m.acc === acc.id || m.to === acc.id).length;
         if (!confirm(n ? `Se eliminará "${acc.name}" y sus ${n} movimientos. ¿Continuar?` : `¿Eliminar "${acc.name}"?`)) return;
-        state.savings = state.savings.filter((m) => m.acc !== acc.id && m.to !== acc.id);
+        const id = acc.id;
+        // traspasos con otras cuentas: siguen existiendo como entrada o salida de la otra cuenta
+        for (const m of state.savings) {
+          if (m.type !== 'move') continue;
+          if (m.acc === id && m.to !== id) Object.assign(m, { type: 'in', acc: m.to, note: m.note || `Desde ${acc.name}` }), delete m.to;
+          else if (m.to === id && m.acc !== id) Object.assign(m, { type: 'out', note: m.note || `Hacia ${acc.name}` }), delete m.to;
+        }
+        // los gastos registrados con retiros de esta cuenta se borran junto a ellos
+        const linked = new Set(state.savings.filter((m) => m.acc === id && m.expenseId).map((m) => m.expenseId));
+        state.finance.expenses = state.finance.expenses.filter((e) => !linked.has(e.id));
+        state.savings = state.savings.filter((m) => m.acc !== id);
         state.savingsAccounts = accounts().filter((a) => a !== acc);
         accId = null;
         save();
@@ -284,9 +294,12 @@ function moveSheet(kind, item) {
         if (withExp && !cat) return toast('Elige la categoría del gasto');
         const next = editing ? state.savings.map((s) => (s === item ? { ...s, ...data } : s)) : [...state.savings, { id: uid(), type, ...data }];
         if (!isIn && balanceOf(data.acc, next) < 0 && !confirm(`Ese retiro es mayor que el saldo de ${accName(data.acc)} (${money(balanceOf(data.acc))}). ¿Registrar igual?`)) return;
+        // al editar sin cambiar el mes de la fecha se conserva el mes en Gastos (ej: "Sobrante de septiembre"
+        // registrado en octubre sigue contando en septiembre)
+        const keepYm = editing && item.ym && monthKey(item.date) === monthKey(data.date) ? item.ym : null;
         const mv = editing ? Object.assign(item, data) : next[next.length - 1];
         if (!editing) state.savings.push(mv);
-        if (inMonth) mv.ym = monthKey(data.date);
+        if (inMonth) mv.ym = keepYm || monthKey(data.date);
         else delete mv.ym;
         // gasto asociado al retiro: crear, actualizar o quitar
         const ex = mv.expenseId ? state.finance.expenses.find((e) => e.id === mv.expenseId) : null;

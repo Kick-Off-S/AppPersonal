@@ -11,20 +11,25 @@ const sum = (list, k) => list.reduce((a, x) => a + (x[k] || 0), 0);
 // Valores que se guardan al marcar una comida como cumplida (así el historial no cambia si cambia el plan).
 export const mealSnapshot = (m) => ({ name: m.name, kcal: m.kcal || 0, p: m.p || 0, c: m.c || 0, f: m.f || 0 });
 
-// Comidas cumplidas del día con sus valores. Hoy y días futuros usan el plan vigente (si editas una comida
-// hoy, se refleja); los días pasados usan la foto guardada al marcarla. Las marcas antiguas sin foto
-// (true) se buscan en el plan.
+// Comidas cumplidas del día con sus valores.
+//  - Hoy y días futuros: manda el plan vigente; una marca cuya comida ya no está en el plan (se copió un
+//    día o se importó otro plan) no suma.
+//  - Días pasados: la foto guardada al marcarla (las marcas antiguas sin foto se buscan en el plan).
 export function doneMealsOf(d) {
   const plan = planFor(d);
   const live = d >= todayStr();
   return Object.entries(doneFor(d))
     .map(([id, v]) => {
       const m = plan.find((x) => x.id === id);
-      if (v && typeof v === 'object') return live && m ? m : { id, ...v };
+      if (live) return v ? m : null;
+      if (v && typeof v === 'object') return { id, ...v };
       return v ? m : null;
     })
     .filter(Boolean);
 }
+
+// Comidas que tenía el plan ese día: para días pasados se usa lo guardado al marcar (counts).
+export const planCountFor = (d) => (d < todayStr() && state.diet.counts?.[d] ? state.diet.counts[d] : planFor(d).length);
 
 export function dayTotals(d) {
   const plan = planFor(d);
@@ -37,8 +42,8 @@ export function dayTotals(d) {
     extra,
     total: diet + extra,
     hasData: doneMeals.length > 0 || extras.length > 0,
-    // si el plan cambió después, un día pasado puede tener más comidas cumplidas que las del plan actual
-    mealsTotal: Math.max(plan.length, doneMeals.length),
+    // días pasados: comidas que tenía el plan ese día (así agregar una comida hoy no cambia el % ni la racha)
+    mealsTotal: Math.max(planCountFor(d), doneMeals.length),
     mealsDone: doneMeals.length,
     missingKcal: plan.filter((m) => !m.kcal).length,
     planKcal: sum(plan, 'kcal'),

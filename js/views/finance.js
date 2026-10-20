@@ -1,7 +1,7 @@
 import { state, save } from '../store.js';
 import { barChart } from '../charts.js';
 import { exportExpensesCSV } from '../backup.js';
-import { loanMonth, loansCard, loanSheet, loanDetail, toggleCuota, loanById } from './loans.js';
+import { loanMonth, loansCard, loanSheet, loanDetail, toggleCuota, loanById, scheduleOf } from './loans.js';
 import { esc, uid, money, num, compact, parseMoney, openSheet, toast, todayStr, monthKey, addMonths, monthLabel, monthShort, shortDate, vibrate } from '../util.js';
 
 const DEFAULT_CATS = ['Arriendo / Vivienda', 'Supermercado', 'Comida fuera', 'Transporte', 'Cuentas básicas', 'Salud', 'Educación', 'Ocio', 'Ropa', 'Deudas / Créditos', 'Otros'];
@@ -248,7 +248,7 @@ function onClick(e) {
   else if (act === 'edit') {
     const ex = state.finance.expenses.find((x) => x.id === id);
     // las cuotas de préstamos se manejan desde el préstamo
-    if (ex?.loanId && loanById(ex.loanId)) return loanDetail(loanById(ex.loanId), render);
+    if (ex?.loanId && loanById(ex.loanId) && scheduleOf(loanById(ex.loanId)).some((c) => c.ym === ex.cuotaYm)) return loanDetail(loanById(ex.loanId), render);
     return expenseSheet(ex);
   }
   else if (act === 'addfixed') return fixedSheet();
@@ -300,6 +300,12 @@ function incomeSheet() {
       draw();
       $('#f').addEventListener('submit', (ev) => {
         ev.preventDefault();
+        // Fijo → Variable: los meses anteriores que heredaban el sueldo lo guardan como propio
+        // (si no, quedarían con ingresos $0)
+        if (!variable() && mode === 'variable') {
+          const keys = Object.keys(state.finance.income).sort();
+          for (let k = keys[0]; k && k < ym; k = addMonths(k, 1)) if (state.finance.income[k] === undefined) state.finance.income[k] = incomeOf(k).value;
+        }
         state.finance.salaryMode = mode;
         const raw = new FormData(ev.target).get('v');
         if (String(raw).trim() === '') delete state.finance.income[ym];

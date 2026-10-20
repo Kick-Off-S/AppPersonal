@@ -156,6 +156,7 @@ function onClick(e) {
     const d = (state.diet.done[date] ||= {});
     if (d[id]) delete d[id];
     else d[id] = mealSnapshot(planFor(date).find((m) => m.id === id) || {});
+    (state.diet.counts ||= {})[date] = planFor(date).length; // comidas del plan ese día
     if (!Object.keys(d).length) delete state.diet.done[date];
     vibrate();
     save();

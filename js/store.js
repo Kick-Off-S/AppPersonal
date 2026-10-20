@@ -6,9 +6,9 @@ const STORE = 'kv';
 const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
-export const VERSION = 2;
+export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.1';
+export const APP_VERSION = '4.2';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -16,7 +16,8 @@ export const defaults = () => ({
   settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '', setupDone: false, theme: { palette: 'teal', mode: 'auto' }, modules: { health: true, finance: true, exercise: true, habits: true, shopping: true } },
   // plan[0..6] = comidas de lunes a domingo: { id, name, time, desc, kcal, p?, c?, f? }
   // done['YYYY-MM-DD'] = { [mealId]: true } -> las comidas cumplidas cuentan para las calorías del día
-  diet: { plan: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, done: {} },
+  // counts[fecha] = comidas que tenía el plan ese día (para el % cumplido y la racha de días pasados)
+  diet: { plan: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, done: {}, counts: {} },
   foods: [], // alimentos personalizados
   log: {}, // comidas FUERA de la dieta: 'YYYY-MM-DD' -> [{ id, name, qty, unit, kcal, p, c, f, per }]
   water: {}, // 'YYYY-MM-DD' -> [ml, ml, ...]
@@ -38,7 +39,8 @@ export const defaults = () => ({
   savingsGoal: 0,
   // Ejercicio: rutinas por día de la semana (0 = lunes) con ejercicios; done[fecha][rutina][ejercicio] = { kg? }
   // log[fecha] = actividades extra { id, type, mins, kcal, note }
-  exercise: { routines: [], done: {}, log: {} },
+  // snap[fecha][rutina] = { total, mins, kcal } al marcar: el historial no cambia si se edita la rutina
+  exercise: { routines: [], done: {}, log: {}, snap: {} },
   // Hábitos: list { id, name, emoji, days }, done[fecha][hábito] = true
   habits: { list: [], done: {} },
   // Lista de compras: { id, name, qty, done }
@@ -87,11 +89,122 @@ export const MIGRATIONS = [
     },
   },
 ];
+MIGRATIONS.push({
+  to: 3,
+  what: 'Historial fijo: comidas que tenía el plan cada día y foto de las rutinas hechas (kcal y minutos)',
+  run(d) {
+    const plan = d.diet?.plan || {};
+    d.diet.counts ||= {};
+    for (const [date, marks] of Object.entries(d.diet?.done || {})) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      d.diet.counts[date] ??= Math.max((plan[weekday(date)] || []).length, Object.keys(marks || {}).length);
+    }
+    const ex = d.exercise;
+    if (!ex) return;
+    ex.snap ||= {};
+    const kg = [...(d.weight || [])].sort((a, b) => String(a.date).localeCompare(String(b.date))).pop()?.kg || 70;
+    for (const [date, byRoutine] of Object.entries(ex.done || {}))
+      for (const rid of Object.keys(byRoutine || {})) {
+        const r = (ex.routines || []).find((x) => x.id === rid);
+        if (!r) continue;
+        (ex.snap[date] ||= {})[rid] ??= routineSnap(r, kg);
+      }
+  },
+});
+// Foto de una rutina al marcarla: total de ejercicios, minutos y calorías si se completa entera.
+// (MET − 1: se descuenta el gasto en reposo, que ya está incluido en la meta diaria de calorías.)
+const MET = { suave: 3.5, moderada: 5, alta: 7 };
+export const routineSnap = (r, kg) => {
+  const mins = r.mins || 45;
+  return { total: (r.items || []).length, mins, kcal: Math.round(((MET[r.intensity] || MET.moderada) - 1) * kg * (mins / 60)) };
+};
+
 export function migrate(d) {
   let v = Number(d.v) || 1;
   for (const step of MIGRATIONS) if (v < step.to) step.run(d), (v = step.to);
   d.v = v;
   return d;
+}
+
+// ---------- validación de tipos ----------
+// Un respaldo editado a mano, de otra versión o un plan importado pueden traer listas donde van objetos,
+// textos donde van números, etc. Se corrige al cargar para que ninguna pantalla falle ni sume mal.
+const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+const n0 = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
+const pos = (x) => Math.max(0, n0(x));
+const objs = (a) => (Array.isArray(a) ? a.filter(isObj) : []);
+const dayList = (a) => (Array.isArray(a) ? [...new Set(a.map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i <= 6))] : null);
+const numMap = (o) => (isObj(o) ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, n0(v)])) : {});
+const macros = (m) => {
+  for (const k of ['kcal', 'p', 'c', 'f']) m[k] = pos(m[k]);
+  return m;
+};
+function normFood(f) {
+  if (!isObj(f)) return undefined;
+  macros(f);
+  if (f.sizes !== undefined) f.sizes = isObj(f.sizes) ? numMap(f.sizes) : undefined;
+  if (f.parts !== undefined) f.parts = objs(f.parts).map(normItem);
+  return f;
+}
+function normItem(it) {
+  macros(it);
+  for (const k of ['qty', 'amount', 'g']) if (it[k] !== undefined) it[k] = pos(it[k]);
+  if (it.food !== undefined) it.food = normFood(it.food);
+  return it;
+}
+export function normalizePlan(plan) {
+  const out = {};
+  for (let i = 0; i < 7; i++)
+    out[i] = objs(isObj(plan) ? plan[i] : null).map((m) => {
+      macros(m);
+      m.items = objs(m.items).map(normItem);
+      return m;
+    });
+  return out;
+}
+function normalize(o) {
+  const st = o.settings;
+  for (const k of ['kcalGoal', 'waterGoal', 'goalKg']) st[k] = pos(st[k]);
+  o.diet.plan = normalizePlan(o.diet.plan);
+  if (!isObj(o.diet.done)) o.diet.done = {};
+  for (const [d, marks] of Object.entries(o.diet.done)) if (!isObj(marks)) delete o.diet.done[d];
+  o.diet.counts = numMap(o.diet.counts);
+  o.foods = objs(o.foods).map(normFood);
+  for (const k of ['log']) for (const [d, list] of Object.entries(o[k])) o[k][d] = objs(list).map(normItem);
+  for (const [d, list] of Object.entries(o.water)) o.water[d] = Array.isArray(list) ? list.map(pos) : [];
+  o.weight = objs(o.weight).map((w) => ((w.kg = pos(w.kg)), w));
+  const fin = o.finance;
+  fin.income = numMap(fin.income);
+  fin.budgets = numMap(fin.budgets);
+  for (const k of ['expenses', 'fixed', 'extras']) fin[k] = objs(fin[k]).map((e) => ((e.amount = pos(e.amount)), e));
+  for (const f of fin.fixed) f.day = Math.min(31, Math.max(1, Math.round(n0(f.day)) || 1));
+  for (const e of fin.expenses) if (e.cuota !== undefined && !(Array.isArray(e.cuota) && e.cuota.length === 2)) delete e.cuota;
+  fin.loans = objs(fin.loans).map((l) => {
+    l.amount = pos(l.amount);
+    l.n = Math.min(120, Math.max(1, Math.round(n0(l.n)) || 1));
+    l.cuota = pos(l.cuota);
+    l.prepaid = Math.min(l.n, Math.max(0, Math.round(n0(l.prepaid))));
+    if (!isObj(l.received)) l.received = {};
+    return l;
+  });
+  o.savings = objs(o.savings).map((m) => ((m.amount = m.type === 'int' ? n0(m.amount) : pos(m.amount)), m));
+  o.savingsGoal = pos(o.savingsGoal);
+  const ex = o.exercise;
+  ex.routines = objs(ex.routines).map((r) => {
+    r.days = dayList(r.days) || [];
+    r.items = objs(r.items).map((it) => {
+      for (const k of ['sets', 'kg', 'mins']) it[k] = pos(it[k]);
+      return it;
+    });
+    r.mins = pos(r.mins) || 45;
+    if (!['suave', 'moderada', 'alta'].includes(r.intensity)) r.intensity = 'moderada';
+    return r;
+  });
+  for (const k of ['done', 'snap']) if (!isObj(ex[k])) ex[k] = {};
+  for (const [d, list] of Object.entries(ex.log)) ex.log[d] = objs(list).map((a) => ((a.mins = pos(a.mins)), (a.kcal = pos(a.kcal)), a));
+  o.habits.list = objs(o.habits.list).map((h) => ((h.days = dayList(h.days) || [0, 1, 2, 3, 4, 5, 6]), h));
+  if (!isObj(o.habits.done)) o.habits.done = {};
+  o.shopping.items = objs(o.shopping.items);
 }
 
 // Completa lo que falte (por si un respaldo viene de una versión anterior), limpia y migra los datos.
@@ -123,6 +236,10 @@ export function withDefaults(data) {
   if (!Array.isArray(out.savingsAccounts) || !out.savingsAccounts.length) out.savingsAccounts = base.savingsAccounts;
   const firstAcc = out.savingsAccounts[0].id;
   for (const m of out.savings) if (!m.acc || !out.savingsAccounts.some((a) => a.id === m.acc)) m.acc = firstAcc;
+  out.diet.counts = (d.diet && d.diet.counts) || {};
+  out.exercise.snap = (d.exercise && d.exercise.snap) || {};
+  if (!out.log || typeof out.log !== 'object') out.log = {};
+  normalize(out);
   out.app = base.app;
   out.v = Number(d.v) || 1; // sin versión = datos de la primera versión
   migrate(out);

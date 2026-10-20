@@ -1,8 +1,9 @@
 // Plan de dieta por día de la semana. Cada comida puede tener calorías: al marcarla como cumplida
 // en "Hoy", esas calorías se suman al día automáticamente.
-import { state, save, clean } from '../store.js';
+import { state, save, clean, normalizePlan } from '../store.js';
 import { foodPicker, scaled } from '../foodpicker.js';
 import { esc, uid, num, openSheet, toast, todayStr, weekdayIndex, shareFile, DAYS, DAYS_SHORT } from '../util.js';
+import { mealSnapshot } from '../calc.js';
 
 let root;
 let day = 0; // 0 = lunes
@@ -127,7 +128,7 @@ async function importPlan(file, input) {
     const p = JSON.parse(await file.text());
     if (p?.app !== 'gestion-personal' || p.kind !== 'diet-plan' || !p.plan || typeof p.plan !== 'object') throw new Error('formato');
     // mismo limpiado que los respaldos: un archivo ajeno no puede inyectar código
-    const plan = clean(p.plan);
+    const plan = normalizePlan(clean(p.plan)); // limpio y con tipos correctos (listas, números)
     const sum = planSummary(plan);
     openSheet(
       `<h3>Importar plan de dieta</h3>
@@ -139,7 +140,8 @@ async function importPlan(file, input) {
       (sheet, close) =>
         (sheet.querySelector('#ok').onclick = () => {
           for (let i = 0; i < 7; i++) state.diet.plan[i] = (plan[i] || []).map((m) => ({ ...m, id: uid() }));
-          if (p.kcalGoal && sheet.querySelector('#goal')?.checked) state.settings.kcalGoal = +p.kcalGoal || state.settings.kcalGoal;
+          const goal = Math.max(0, Number(p.kcalGoal) || 0);
+          if (goal && sheet.querySelector('#goal')?.checked) state.settings.kcalGoal = goal;
           save();
           close();
           toast('Plan importado');
@@ -306,7 +308,11 @@ function mealSheet(meal) {
           items,
         };
         if (!data.name) return toast('Ponle un nombre a la comida');
-        if (editing) Object.assign(meal, data);
+        if (editing) {
+          Object.assign(meal, data);
+          // si ya estaba marcada hoy (o en días futuros), su foto se actualiza con los valores nuevos
+          for (const [d, marks] of Object.entries(state.diet.done)) if (d >= todayStr() && marks[meal.id]) marks[meal.id] = mealSnapshot(meal);
+        }
         else for (const i of selected.length ? selected : [day]) meals(i).push({ id: uid(), ...structuredClone(data) });
         save();
         close();
@@ -315,7 +321,8 @@ function mealSheet(meal) {
       $('#del')?.addEventListener('click', () => {
         if (!confirm(`¿Eliminar "${meal.name}" de ${DAYS[day]}?`)) return;
         state.diet.plan[day] = meals(day).filter((m) => m.id !== meal.id);
-        for (const d of Object.values(state.diet.done)) delete d[meal.id];
+        // solo hoy en adelante: los días pasados conservan lo que se comió (foto guardada)
+        for (const [d, marks] of Object.entries(state.diet.done)) if (d >= todayStr()) delete marks[meal.id];
         save();
         close();
         render();

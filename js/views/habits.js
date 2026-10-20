@@ -204,7 +204,7 @@ function detailSheet(h) {
       const on = h.days.includes(weekdayIndex(d));
       const ok = isDone(d, h.id);
       if (on && d <= todayStr()) sched++;
-      if (ok) done++;
+      if (ok && on) done++; // solo días programados: el % no puede pasar de 100
       cells += `<button type="button" class="cday ${ok ? 'ok' : ''} ${on ? '' : 'off'} ${d === todayStr() ? 'cur' : ''} ${d > todayStr() ? 'fut' : ''}" data-d="${d}">${i}</button>`;
     }
     return { cells, done, sched };
