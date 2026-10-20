@@ -2,9 +2,14 @@ import { state, save, replaceState, defaults, APP_VERSION } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast } from '../util.js';
 import { MODULES, isOn, setModule } from '../modules.js';
+import { askBackupPassword, lockEnabled, setPin, checkPin, pinPad, biometricAvailable, registerBiometric } from '../security.js';
+import { openSheet } from '../util.js';
 import { PALETTES, MODES, setTheme } from '../theme.js';
 
 let root;
+
+let bioOk = false; // ¿el teléfono tiene Face ID / huella disponible para apps web?
+biometricAvailable().then((v) => (bioOk = v));
 
 export function mount(el) {
   root = el;
@@ -53,6 +58,22 @@ function render() {
       }
     </div>
 
+    <div class="card"><h2>Privacidad</h2>
+      <label class="mod"><input type="checkbox" class="switch" data-sec="lock" ${lockEnabled() ? 'checked' : ''}>
+        <span class="grow"><b>Bloquear con PIN</b><small>Pide tu PIN al abrir la app. Al salir, el contenido se oculta en la vista de apps abiertas.</small></span></label>
+      ${
+        lockEnabled()
+          ? `${bioOk ? `<label class="mod"><input type="checkbox" class="switch" data-sec="bio" ${state.settings.lock.credId ? 'checked' : ''}>
+              <span class="grow"><b>Face ID / huella</b><small>Desbloquea sin escribir el PIN.</small></span></label>` : ''}
+            <div class="small muted" style="margin-top:6px">Volver a bloquear</div>
+            <div class="seg">${[[0, 'Al salir'], [60, '1 min'], [300, '5 min'], [900, '15 min']]
+              .map(([v, l]) => `<button type="button" class="${(state.settings.lock.after ?? 0) === v ? 'sel' : ''}" data-act="lock-after" data-v="${v}">${l}</button>`)
+              .join('')}</div>
+            <button class="ghost block sm" data-act="pin-change" style="margin-top:8px">Cambiar PIN</button>`
+          : ''
+      }
+    </div>
+
     <div class="card"><h2>Respaldo</h2>
       <p class="small muted" style="margin-top:0">Tus datos viven solo en este teléfono. Guarda un respaldo para no perderlos si cambias de teléfono, borras la app o limpias Safari.</p>
       ${hasData && stale ? `<div class="banner warn">${age === null ? 'Aún no has hecho ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`}</div>` : ''}
@@ -75,7 +96,92 @@ function render() {
     <p class="small muted" style="text-align:center">Gestión Personal v${APP_VERSION} · Funciona sin internet · Sin cuentas ni servidores</p>`;
 }
 
+// PIN nuevo (dos veces). Resuelve con el PIN o null.
+function newPinSheet(title = 'Crea tu PIN') {
+  return new Promise((resolve) => {
+    let first = null;
+    let len = 4;
+    const close = openSheet(
+      `<h3 id="pt">${title}</h3><div class="seg" id="len"><button type="button" data-l="4" class="sel">4 dígitos</button><button type="button" data-l="6">6 dígitos</button></div>
+      <div id="pp" style="margin-top:10px"></div><p class="small muted">Si lo olvidas no se puede recuperar: tendrías que borrar los datos y restaurar un respaldo.</p>
+      <div class="actions"><button type="button" class="ghost" data-close id="cx">Cancelar</button></div>`,
+      (sheet) => {
+        sheet.querySelector('#cx').onclick = () => resolve(null);
+        const draw = () =>
+          pinPad(sheet.querySelector('#pp'), {
+            length: len,
+            title: first ? 'Repítelo para confirmar' : 'Escribe tu PIN',
+            onDone(pin) {
+              if (!first) return (first = pin), (sheet.querySelector('#len').hidden = true), draw();
+              if (pin !== first) return toast('No coinciden. Vuelve a intentarlo.'), (first = null), (sheet.querySelector('#len').hidden = false), draw();
+              close();
+              resolve(pin);
+            },
+          });
+        sheet.querySelector('#len').onclick = (e) => {
+          const b = e.target.closest('[data-l]');
+          if (!b) return;
+          len = +b.dataset.l;
+          sheet.querySelectorAll('#len button').forEach((x) => x.classList.toggle('sel', x === b));
+          draw();
+        };
+        draw();
+      }
+    );
+  });
+}
+
+// Pide el PIN actual (para desactivar o cambiar). Resuelve true/false.
+function confirmPinSheet(title) {
+  return new Promise((resolve) => {
+    const close = openSheet(`<h3>${title}</h3><div id="pp" style="margin-top:10px"></div><div class="actions"><button type="button" class="ghost" data-close id="cx">Cancelar</button></div>`, (sheet) => {
+      sheet.querySelector('#cx').onclick = () => resolve(false);
+      const pad = pinPad(sheet.querySelector('#pp'), {
+        length: state.settings.lock.len || 4,
+        title: 'PIN actual',
+        async onDone(pin) {
+          if (await checkPin(pin)) return close(), resolve(true);
+          pad.shake();
+          toast('PIN incorrecto');
+        },
+      });
+    });
+  });
+}
+
+async function onSecurity(kind, on, input) {
+  input.checked = !on; // se confirma al terminar cada paso
+  if (kind === 'lock' && on) {
+    const pin = await newPinSheet();
+    if (!pin) return;
+    await setPin(pin);
+    toast('Bloqueo activado');
+    if (bioOk && confirm('¿Quieres usar también Face ID o tu huella para desbloquear?')) await enableBio();
+  } else if (kind === 'lock') {
+    if (!(await confirmPinSheet('Desactivar bloqueo'))) return;
+    state.settings.lock = { after: state.settings.lock.after ?? 0 };
+    save();
+    toast('Bloqueo desactivado');
+  } else if (kind === 'bio' && on) await enableBio();
+  else if (kind === 'bio') {
+    delete state.settings.lock.credId;
+    save();
+  }
+  render();
+}
+
+async function enableBio() {
+  try {
+    state.settings.lock.credId = await registerBiometric();
+    save();
+    toast('Face ID / huella activado');
+  } catch {
+    toast('No se pudo activar. Puedes seguir usando tu PIN.');
+  }
+}
+
 function onChange(e) {
+  if (e.target.dataset.sec) return onSecurity(e.target.dataset.sec, e.target.checked, e.target);
   if (e.target.dataset.mod) {
     if (!setModule(e.target.dataset.mod, e.target.checked)) {
       e.target.checked = true;
@@ -95,11 +201,17 @@ function onChange(e) {
 async function onClick(e) {
   const t = e.target.closest('[data-act]');
   if (!t) return;
+  if (t.dataset.act === 'lock-after') return (state.settings.lock.after = +t.dataset.v), save(), render();
+  if (t.dataset.act === 'pin-change') {
+    if (!(await confirmPinSheet('Cambiar PIN'))) return;
+    const pin = await newPinSheet('Nuevo PIN');
+    if (pin) await setPin(pin), toast('PIN cambiado');
+    return render();
+  }
   if (t.dataset.act === 'palette') return setTheme({ palette: t.dataset.p }), render();
   if (t.dataset.act === 'mode') return setTheme({ mode: t.dataset.m }), render();
   if (t.dataset.act === 'export') {
-    await backup();
-    render();
+    backup(render);
   } else if (t.dataset.act === 'csv') exportExpensesCSV();
   else if (t.dataset.act === 'import') root.querySelector('#file').click();
   else if (t.dataset.act === 'reset') {
@@ -116,8 +228,15 @@ async function restore(file) {
   if (!file) return;
   try {
     const parsed = JSON.parse(await file.text());
-    const data = parsed?.data;
-    if (parsed?.app !== 'gestion-personal' || !data || typeof data !== 'object') throw new Error('formato');
+    if (parsed?.app !== 'gestion-personal') throw new Error('formato');
+    let data = parsed.data;
+    if (parsed.enc) {
+      // respaldo cifrado: pedir la contraseña
+      const text = await askBackupPassword(parsed);
+      if (text === null) return;
+      data = JSON.parse(text);
+    }
+    if (!data || typeof data !== 'object') throw new Error('formato');
     const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-CL') : 'fecha desconocida';
     if (!confirm(`Se reemplazarán los datos actuales por los del respaldo (${when}). ¿Continuar?`)) return;
     await replaceState(data);

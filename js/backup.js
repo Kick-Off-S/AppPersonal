@@ -1,6 +1,7 @@
 // Respaldo de datos (archivo .json) y exportación de gastos a planilla (.csv).
 import { state, save, saveNow, exportPayload } from './store.js';
-import { shareFile, toast, todayStr } from './util.js';
+import { shareFile, toast, todayStr, openSheet } from './util.js';
+import { encryptText } from './security.js';
 
 export const hasData = () =>
   !!(
@@ -35,21 +36,75 @@ export function snoozeBackup() {
   save();
 }
 
-export async function backup() {
+// Entrega el archivo. Debe llamarse directo desde un toque (Safari exige un gesto para Compartir).
+async function deliver(text, close, onDone) {
   const prev = state.settings.lastBackup;
   state.settings.lastBackup = new Date().toISOString();
-  const text = JSON.stringify(exportPayload(), null, 2);
   try {
     const ok = await shareFile(`gestion-personal-${todayStr()}.json`, text, 'application/json', 'Respaldo Gestión Personal');
     if (!ok) state.settings.lastBackup = prev; // cancelado: no cuenta como respaldo
-    else toast('Respaldo listo');
+    else toast('Respaldo listo'), close();
     await saveNow();
-    return ok;
   } catch {
     state.settings.lastBackup = prev;
     toast('No se pudo guardar el respaldo');
-    return false;
   }
+  onDone?.();
+}
+
+// Respaldo: con contraseña (cifrado AES-256, recomendado) o sin ella.
+// Cifrar toma un momento, así que primero se prepara y luego un segundo toque lo guarda/comparte.
+export function backup(onDone) {
+  let usePw = state.settings.backupPw !== false;
+  let ready = null; // texto listo para guardar
+  openSheet(
+    `<h3>Guardar respaldo</h3>
+    <div class="seg" id="bmode"><button type="button" data-m="pw">Con contraseña</button><button type="button" data-m="plain">Sin contraseña</button></div>
+    <div id="pwbox">
+      <p class="small muted" style="margin:8px 0 0">El archivo queda cifrado: nadie puede leer tus datos sin la contraseña, aunque lo envíes por WhatsApp o correo. <b>Si la olvidas, el respaldo no se puede abrir.</b></p>
+      <label class="field">Contraseña (mínimo 6)<input id="p1" type="password" autocomplete="new-password"></label>
+      <label class="field">Repetir contraseña<input id="p2" type="password" autocomplete="new-password"></label>
+    </div>
+    <p class="small muted" id="plainnote" hidden style="margin:8px 0 0">Cualquiera que tenga el archivo podrá leer tus finanzas y tu salud.</p>
+    <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button type="button" class="primary" id="go"></button></div>`,
+    (sheet, close) => {
+      const $ = (q) => sheet.querySelector(q);
+      const draw = () => {
+        sheet.querySelectorAll('#bmode button').forEach((b) => b.classList.toggle('sel', (b.dataset.m === 'pw') === usePw));
+        $('#pwbox').hidden = !usePw;
+        $('#plainnote').hidden = usePw;
+        $('#go').textContent = ready ? 'Guardar archivo' : usePw ? 'Cifrar respaldo' : 'Guardar archivo';
+      };
+      $('#bmode').onclick = (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        usePw = b.dataset.m === 'pw';
+        ready = null;
+        draw();
+      };
+      sheet.oninput = () => ((ready = null), draw());
+      $('#go').onclick = async () => {
+        if (ready) return deliver(ready, close, onDone);
+        const payload = exportPayload();
+        if (!usePw) {
+          state.settings.backupPw = false;
+          return deliver(JSON.stringify(payload, null, 2), close, onDone);
+        }
+        const p1 = $('#p1').value;
+        if (p1.length < 6) return toast('La contraseña debe tener al menos 6 caracteres');
+        if (p1 !== $('#p2').value) return toast('Las contraseñas no coinciden');
+        $('#go').disabled = true;
+        $('#go').textContent = 'Cifrando…';
+        const { data, ...meta } = payload;
+        ready = JSON.stringify(await encryptText(JSON.stringify(data), p1, { version: meta.version, exportedAt: meta.exportedAt }));
+        state.settings.backupPw = true;
+        $('#go').disabled = false;
+        draw();
+        toast('Listo: toca "Guardar archivo"');
+      };
+      draw();
+    }
+  );
 }
 
 // Planilla de gastos para Excel (separada por ";" y con BOM para que respete los acentos).

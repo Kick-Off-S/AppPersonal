@@ -55,6 +55,8 @@ y que la huella de la CSP coincida con el script de `index.html`.
 
 ## Seguridad
 - Los respaldos se limpian al cargarse (`clean()` en `js/store.js`): un archivo manipulado no puede inyectar código.
+- Respaldo opcional cifrado con contraseña (AES-GCM 256 + PBKDF2) y bloqueo con PIN / Face ID (WebAuthn) en `js/security.js`.
+  El bloqueo protege la pantalla; los datos guardados en el teléfono no se cifran con el PIN.
 - `index.html` tiene una Content-Security-Policy que solo permite el código propio de la app.
   Si cambias el `<script>` de `index.html`, actualiza su huella `sha256-…` en la CSP (la prueba te dice cuál).
 

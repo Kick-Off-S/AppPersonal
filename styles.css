@@ -375,3 +375,18 @@ html, body, button, a, input, select, textarea, label, .item { touch-action: man
 .macros.m4 b { font-size: 16px; }
 /* casillas y controles nativos con el color de la paleta */
 :root { accent-color: var(--primary); }
+
+/* ---- bloqueo y privacidad ---- */
+#lock { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: calc(env(safe-area-inset-top) + 16px) 24px calc(env(safe-area-inset-bottom) + 16px); }
+.lock-box { width: 100%; max-width: 320px; text-align: center; }
+.lock-box h3 { margin: 10px 0 16px; }
+body.locked > :not(#lock):not(#toast) { visibility: hidden; }
+body.privacy > :not(#lock) { filter: blur(24px); }
+.pin-title { font-weight: 650; margin-bottom: 10px; }
+.pin-dots { display: flex; justify-content: center; gap: 14px; margin: 6px 0 16px; }
+.pin-dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--primary); }
+.pin-dots i.on { background: var(--primary); }
+.pin-dots.shake { animation: shake 0.35s; }
+.pin-keys { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pin-keys button { min-height: 58px; font-size: 24px; border-radius: 16px; }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }

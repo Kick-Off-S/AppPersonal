@@ -1,4 +1,5 @@
-import { load, state, save, APP_VERSION } from './store.js';
+import { load, state, save, APP_VERSION, replaceState, defaults } from './store.js';
+import { lockEnabled, lockScreen } from './security.js';
 import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
 import { MODULES, isOn } from './modules.js';
 import { esc, openSheet, toast } from './util.js';
@@ -100,12 +101,17 @@ function drawNotice(home) {
 $notice.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-n]');
   if (!b) return;
-  if (b.dataset.n === 'backup') await backup();
-  else snoozeBackup();
+  if (b.dataset.n === 'backup') return backup(() => drawNotice(true));
+  snoozeBackup();
   drawNotice(true);
 });
 
 window.addEventListener('hashchange', show);
+// "Olvidé mi PIN": borrar los datos de este teléfono (se puede restaurar un respaldo después)
+window.addEventListener('reset-all', async () => {
+  await replaceState(defaults());
+  location.reload();
+});
 window.addEventListener('modules-changed', () => {
   applyTheme(); // por si se restauró un respaldo con otra apariencia
   drawTabbar();
@@ -114,6 +120,8 @@ window.addEventListener('modules-changed', () => {
 
 await load();
 applyTheme();
+// con bloqueo activo no se dibuja ningún dato hasta desbloquear
+if (lockEnabled()) await lockScreen();
 drawTabbar();
 show();
 if (!welcome()) whatsNew();
@@ -166,9 +174,9 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Ahorro y Gastos conectados:</b> al retirar de tu ahorro, el dinero suma a tus ingresos del mes y puedes registrar en el mismo paso el gasto que pagaste. Así cada retiro queda justificado.</li>
-      <li>Los aportes desde Ahorro pueden descontarse de tu disponible del mes ("Sale de mi dinero de este mes").</li>
-      <li>De la 3.4: pestaña <b>Armar</b> para sándwiches y preparaciones, y muchos panes y rellenos nuevos.</li>
+      <li><b>Respaldo con contraseña:</b> el archivo queda cifrado (AES-256). Aunque lo envíes por WhatsApp o correo, nadie puede leer tus datos sin la contraseña.</li>
+      <li><b>Bloqueo con PIN y Face ID:</b> en Ajustes → Privacidad. Al salir de la app el contenido se oculta en la vista de apps abiertas.</li>
+      <li>Más protección por dentro: los respaldos se revisan al restaurarlos y la app solo ejecuta su propio código.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );
