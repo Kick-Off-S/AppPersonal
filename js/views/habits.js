@@ -91,7 +91,7 @@ function render() {
       ${
         others.length
           ? `<div class="card"><h2>Otros días</h2>${others
-              .map((h) => `<div class="item" data-act="detail" data-id="${h.id}"><span class="emoji">${h.emoji || '✅'}</span><div class="grow"><div class="t">${esc(h.name)}</div><div class="s">${daysTxt(h.days)}</div></div><span class="muted">›</span></div>`)
+              .map((h) => `<div class="item" data-act="detail" data-id="${h.id}"><span class="emoji">${esc(h.emoji || '✅')}</span><div class="grow"><div class="t">${esc(h.name)}</div><div class="s">${daysTxt(h.days)}</div></div><span class="muted">›</span></div>`)
               .join('')}</div>`
           : ''
       }
@@ -108,7 +108,7 @@ function habitRow(h) {
   const d = isDone(date, h.id);
   const st = streakOf(h, date);
   return `<div class="item habit ${d ? 'done' : ''}">
-    <span class="emoji">${h.emoji || '✅'}</span>
+    <span class="emoji">${esc(h.emoji || '✅')}</span>
     <div class="grow" data-act="detail" data-id="${h.id}"><div class="t">${esc(h.name)}</div><div class="s">${st >= 1 ? `🔥 ${st} ${st === 1 ? 'día' : 'días'}` : daysTxt(h.days)}</div></div>
     <button class="check big ${d ? 'on' : ''}" data-act="tick" data-id="${h.id}" aria-label="Marcar ${esc(h.name)}" aria-pressed="${d}">✓</button></div>`;
 }
@@ -210,7 +210,7 @@ function detailSheet(h) {
     return { cells, done, sched };
   };
   openSheet(
-    `<div class="row between"><h3>${h.emoji || '✅'} ${esc(h.name)}</h3><button class="sm" id="edit">Editar</button></div>
+    `<div class="row between"><h3>${esc(h.emoji || '✅')} ${esc(h.name)}</h3><button class="sm" id="edit">Editar</button></div>
     <div class="hstats"><div><b id="cur"></b><span>Racha actual</span></div><div><b id="best"></b><span>Mejor racha</span></div><div><b id="pct"></b><span>Este mes</span></div></div>
     <div class="nav" style="margin-top:12px"><button class="icon" id="mprev" aria-label="Mes anterior">‹</button><div class="label" id="mlabel"></div><button class="icon" id="mnext" aria-label="Mes siguiente">›</button></div>
     <div class="cal-head">${DAYS_SHORT.map((l) => `<span>${l}</span>`).join('')}</div>

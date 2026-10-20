@@ -117,7 +117,7 @@ function habitsCard() {
       .map((h) => {
         const d = isDone(date, h.id);
         const st = streakOf(h, date);
-        return `<div class="item habit ${d ? 'done' : ''}"><span class="emoji">${h.emoji || '✅'}</span>
+        return `<div class="item habit ${d ? 'done' : ''}"><span class="emoji">${esc(h.emoji || '✅')}</span>
         <div class="grow"><div class="t">${esc(h.name)}</div>${st ? `<div class="s">🔥 ${st} ${st === 1 ? 'día' : 'días'}</div>` : ''}</div>
         <button class="check ${d ? 'on' : ''}" data-act="habit" data-id="${h.id}" aria-label="Marcar ${esc(h.name)}" aria-pressed="${d}">✓</button></div>`;
       })

@@ -45,6 +45,19 @@ Con más de 5 secciones, la barra muestra 4 + "Más".
 Racha de dieta, proteínas/carbohidratos/grasas, topes por categoría, compras en cuotas, exportar gastos a Excel,
 recordatorio semanal de respaldo, aviso de versión nueva y más comida chilena en el buscador.
 
+## Pruebas
+```bash
+npm test
+```
+Corren sin instalar nada (Node 20+). También se ejecutan solas en GitHub en cada push (pestaña Actions).
+Revisan cálculos (cantidades, tamaños, préstamos), la limpieza de respaldos, que todo el JS esté en `sw.js`
+y que la huella de la CSP coincida con el script de `index.html`.
+
+## Seguridad
+- Los respaldos se limpian al cargarse (`clean()` en `js/store.js`): un archivo manipulado no puede inyectar código.
+- `index.html` tiene una Content-Security-Policy que solo permite el código propio de la app.
+  Si cambias el `<script>` de `index.html`, actualiza su huella `sha256-…` en la CSP (la prueba te dice cuál).
+
 ## Estructura
 - `js/store.js`: estado único (IndexedDB) y respaldo.
 - `js/calc.js`: cálculos que cruzan módulos (dieta cumplida + extras = calorías del día).

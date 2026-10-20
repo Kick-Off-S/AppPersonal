@@ -1,0 +1,9 @@
+{
+  "name": "gestion-personal",
+  "private": true,
+  "type": "module",
+  "description": "PWA de dieta, ejercicio, hábitos y finanzas. Sin dependencias.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\""
+  }
+}

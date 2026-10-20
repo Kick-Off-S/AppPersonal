@@ -44,10 +44,28 @@ export const defaults = () => ({
   shopping: { items: [] },
 });
 
-// Completa lo que falte (por si un respaldo viene de una versión anterior).
+// ---------- limpieza de datos ----------
+// Un respaldo puede venir de otra persona (o estar manipulado). Los textos libres se muestran siempre
+// escapados; el resto (ids, fechas, números, claves) se inserta tal cual en el HTML, así que les quitamos
+// cualquier carácter que permita inyectar código.
+const FREE_TEXT = new Set(['name', 'note', 'desc', 'label', 'person', 'cat', 'unit', 'reps', 'title', 'qty', 'type', 'time', 'emoji']);
+const UNSAFE = /[<>"'`&\\]/g;
+export function clean(v, key = '') {
+  if (typeof v === 'string') return FREE_TEXT.has(key) ? v : v.replace(UNSAFE, '');
+  if (Array.isArray(v)) return v.map((x) => clean(x, key));
+  if (v && typeof v === 'object') {
+    const o = {};
+    // las claves de los topes son nombres de categoría (texto libre que se muestra escapado)
+    for (const [k, x] of Object.entries(v)) o[key === 'budgets' ? k : k.replace(UNSAFE, '')] = clean(x, k);
+    return o;
+  }
+  return typeof v === 'number' || typeof v === 'boolean' || v === null ? v : undefined;
+}
+
+// Completa lo que falte (por si un respaldo viene de una versión anterior) y limpia los datos.
 export function withDefaults(data) {
   const base = defaults();
-  const d = data && typeof data === 'object' ? data : {};
+  const d = clean(data && typeof data === 'object' ? data : {});
   const out = { ...base, ...d };
   out.settings = { ...base.settings, ...(d.settings || {}) };
   out.settings.modules = { ...base.settings.modules, ...((d.settings && d.settings.modules) || {}) };
