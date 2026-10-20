@@ -62,7 +62,7 @@ export function backup(onDone) {
     <div class="seg" id="bmode"><button type="button" data-m="pw">Con contraseña</button><button type="button" data-m="plain">Sin contraseña</button></div>
     <div id="pwbox">
       <p class="small muted" style="margin:8px 0 0">El archivo queda cifrado: nadie puede leer tus datos sin la contraseña, aunque lo envíes por WhatsApp o correo. <b>Si la olvidas, el respaldo no se puede abrir.</b></p>
-      <label class="field">Contraseña (mínimo 6)<input id="p1" type="password" autocomplete="new-password"></label>
+      <label class="field">Contraseña (mínimo 10 caracteres; mejor una frase)<input id="p1" type="password" autocomplete="new-password" placeholder="Ej: mi perro come sandia"></label>
       <label class="field">Repetir contraseña<input id="p2" type="password" autocomplete="new-password"></label>
     </div>
     <p class="small muted" id="plainnote" hidden style="margin:8px 0 0">Cualquiera que tenga el archivo podrá leer tus finanzas y tu salud.</p>
@@ -91,7 +91,7 @@ export function backup(onDone) {
           return deliver(JSON.stringify(payload, null, 2), close, onDone);
         }
         const p1 = $('#p1').value;
-        if (p1.length < 6) return toast('La contraseña debe tener al menos 6 caracteres');
+        if (p1.length < 10) return toast('Usa al menos 10 caracteres (por ejemplo, una frase corta)');
         if (p1 !== $('#p2').value) return toast('Las contraseñas no coinciden');
         $('#go').disabled = true;
         $('#go').textContent = 'Cifrando…';
@@ -107,9 +107,12 @@ export function backup(onDone) {
   );
 }
 
+// Celda de CSV. Un texto que empieza con = + - @ Excel lo ejecutaría como fórmula: se antepone ' para que sea texto.
+export const csvCell = (v) => `"${String(v ?? '').replace(/^([=+\-@\t\r])/, "'$1").replace(/"/g, '""')}"`;
+
 // Planilla de gastos para Excel (separada por ";" y con BOM para que respete los acentos).
 export async function exportExpensesCSV() {
-  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const cell = csvCell;
   const rows = [...state.finance.expenses]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((e) => [...[e.date, e.cat, e.desc || '', e.fixedId ? 'Fijo' : e.cuota ? `Cuota ${e.cuota[0]}/${e.cuota[1]}` : 'Variable'].map(cell), e.amount].join(';'));

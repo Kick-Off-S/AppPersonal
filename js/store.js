@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 2;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.0';
+export const APP_VERSION = '4.1';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -132,41 +132,76 @@ export function withDefaults(data) {
 export let state = defaults();
 
 // ---------- IndexedDB ----------
+// Una sola conexión, reutilizada. Abrir tiene tiempo límite (en iPhone a veces no responde) y si iOS
+// corta la conexión se vuelve a abrir. Cada operación se reintenta una vez.
+let dbP = null;
 function openDB() {
-  return new Promise((resolve, reject) => {
+  if (dbP) return dbP;
+  dbP = new Promise((resolve, reject) => {
     if (!('indexedDB' in window)) return reject(new Error('sin indexedDB'));
+    const t = setTimeout(() => reject(new Error('IndexedDB no responde')), 4000);
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      clearTimeout(t);
+      const db = req.result;
+      db.onclose = () => (dbP = null);
+      db.onversionchange = () => (db.close(), (dbP = null));
+      resolve(db);
+    };
+    req.onerror = () => (clearTimeout(t), reject(req.error));
+  }).catch((e) => {
+    dbP = null;
+    throw e;
   });
+  return dbP;
 }
 
-const idb = (mode, fn) =>
+const idbOnce = (mode, fn) =>
   openDB().then(
     (db) =>
       new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, mode);
+        let tx;
+        try {
+          tx = db.transaction(STORE, mode);
+        } catch (e) {
+          dbP = null; // conexión cerrada por el sistema
+          return reject(e);
+        }
         const req = fn(tx.objectStore(STORE));
         tx.oncomplete = () => resolve(req.result);
         tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('transacción abortada'));
       })
   );
+const idb = (mode, fn) => idbOnce(mode, fn).catch(() => ((dbP = null), idbOnce(mode, fn)));
+const hasIDB = () => 'indexedDB' in window;
+
+// Si no se pudieron leer los datos guardados, la app no escribe nada (para no pisarlos con datos
+// vacíos o viejos) hasta que se vuelva a abrir. La app muestra un aviso.
+export let readOnly = false;
 
 export async function load() {
-  let raw;
-  try {
-    raw = await idb('readonly', (s) => s.get(KEY));
-  } catch {
-    /* cae a localStorage */
-  }
-  if (!raw) {
+  let fromIdb;
+  let idbFailed = false;
+  if (hasIDB()) {
     try {
-      raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      fromIdb = await idb('readonly', (s) => s.get(KEY));
     } catch {
-      raw = null;
+      idbFailed = true;
     }
   }
+  let fromLs = null;
+  try {
+    fromLs = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+  } catch {
+    fromLs = null;
+  }
+  // Gana la copia guardada más recientemente (savedAt). Sin marca (datos antiguos) se prefiere IndexedDB.
+  const at = (x) => (x && typeof x.savedAt === 'string' ? x.savedAt : '');
+  let raw = fromIdb || fromLs;
+  if (fromIdb && fromLs && at(fromLs) > at(fromIdb)) raw = fromLs;
+  readOnly = idbFailed;
   state = withDefaults(raw);
   // Pide al navegador que no borre los datos si falta espacio.
   navigator.storage?.persist?.().catch(() => {});
@@ -178,13 +213,23 @@ let pending = null;
 
 function flush() {
   clearTimeout(timer);
+  if (readOnly) return Promise.resolve();
+  state.savedAt = new Date().toISOString();
   const snapshot = JSON.stringify(state);
-  pending = idb('readwrite', (s) => s.put(JSON.parse(snapshot), KEY))
+  pending = (hasIDB() ? idb('readwrite', (s) => s.put(JSON.parse(snapshot), KEY)) : Promise.reject(new Error('sin indexedDB')))
+    .then(() => {
+      // guardado normal OK: la copia de emergencia ya no sirve (y podría quedar vieja)
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {
+        /* sin almacenamiento */
+      }
+    })
     .catch(() => {
       try {
         localStorage.setItem(LS_KEY, snapshot);
       } catch {
-        /* sin espacio: nada más que hacer */
+        window.dispatchEvent(new Event('save-failed'));
       }
     })
     .finally(() => {
@@ -204,14 +249,41 @@ export function saveNow() {
   return flush();
 }
 
-export async function replaceState(data) {
+// ---------- copia para deshacer ----------
+// Antes de restaurar un respaldo o borrar todo se guarda una copia de los datos actuales en el
+// teléfono, para poder volver atrás (Ajustes → Respaldo).
+const PREV = 'previous';
+export async function keepPrevious(label) {
+  try {
+    await idb('readwrite', (s) => s.put({ label, at: new Date().toISOString(), data: JSON.parse(JSON.stringify(state)) }, PREV));
+  } catch {
+    /* sin IndexedDB no hay copia para deshacer */
+  }
+}
+export async function getPrevious() {
+  try {
+    return (await idb('readonly', (s) => s.get(PREV))) || null;
+  } catch {
+    return null;
+  }
+}
+
+// Reemplaza todos los datos (restaurar un respaldo, borrar todo, deshacer).
+//   label: guarda antes una copia para deshacer.  keepLock: conserva el bloqueo de este teléfono.
+export async function replaceState(data, { label = '', keepLock = false } = {}) {
+  if (label) await keepPrevious(label);
+  const lock = state.settings?.lock;
   state = withDefaults(data);
+  if (keepLock) state.settings.lock = lock;
+  readOnly = false; // el usuario eligió estos datos explícitamente
   await flush();
   return state;
 }
 
+// El bloqueo (PIN y Face ID) es de cada teléfono: no viaja en los respaldos.
 export function exportPayload() {
-  return { app: 'gestion-personal', version: VERSION, exportedAt: new Date().toISOString(), data: state };
+  const { lock, ...settings } = state.settings;
+  return { app: 'gestion-personal', version: VERSION, exportedAt: new Date().toISOString(), data: { ...state, settings } };
 }
 
 document.addEventListener('visibilitychange', () => {

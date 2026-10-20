@@ -241,7 +241,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
 
     body.innerHTML = `<div class="pk-food"><b>${esc(food.name)}</b>
         <div class="small muted">${esc(food.unit)} = ${num(food.kcal)} kcal${food.p || food.c || food.f ? ` · P ${num(food.p, 1)} · C ${num(food.c, 1)} · G ${num(food.f, 1)} g` : ''}</div></div>
-      ${modes.length > 1 ? `<div class="seg pk-mode">${modes.map((m) => `<button type="button" data-m="${m}">${modeName(m)}</button>`).join('')}</div>` : ''}
+      ${modes.length > 1 ? `<div class="seg pk-mode">${modes.map((m) => `<button type="button" data-m="${m}">${esc(modeName(m))}</button>`).join('')}</div>` : ''}
       ${
         food.sizes
           ? `<div class="pk-sizes"><span class="small muted">Tamaño</span><div class="seg sizes">${Object.entries(food.sizes)

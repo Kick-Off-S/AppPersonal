@@ -67,6 +67,11 @@ y que la huella de la CSP coincida con el script de `index.html`.
 - `index.html` tiene una Content-Security-Policy que solo permite el código propio de la app.
   Si cambias el `<script>` de `index.html`, actualiza su huella `sha256-…` en la CSP (la prueba te dice cuál).
 
+## Importante: no publicar otros sitios en esta cuenta
+GitHub Pages sirve todos los repos de la cuenta bajo el mismo origen (`kick-off-s.github.io`). Un navegador comparte el
+almacenamiento (IndexedDB/localStorage) entre todo lo que esté en ese origen: **no actives Pages en otros repos de esta
+cuenta**, o usa un dominio propio para la app.
+
 ## Estructura
 - `js/store.js`: estado único (IndexedDB) y respaldo.
 - `js/calc.js`: cálculos que cruzan módulos (dieta cumplida + extras = calorías del día).

@@ -1,4 +1,4 @@
-import { load, state, save, APP_VERSION, replaceState, defaults } from './store.js';
+import { load, state, save, APP_VERSION, replaceState, defaults, readOnly } from './store.js';
 import { lockEnabled, lockScreen } from './security.js';
 import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
 import { MODULES, isOn } from './modules.js';
@@ -76,6 +76,7 @@ function drawTabbar() {
 }
 
 function show() {
+  if (document.body.classList.contains('locked')) return; // con la app bloqueada no se dibujan datos
   const tabs = visibleTabs();
   const id = location.hash.slice(1);
   const tab = (id === 'more' && moreTabs().length ? MORE : null) || tabs.find((t) => t.id === id) || tabs[0];
@@ -88,11 +89,29 @@ function show() {
   $view.scrollTop = 0;
   window.scrollTo(0, 0);
   drawNotice(tab === tabs[0]);
-  tab.view.mount($view);
+  try {
+    tab.view.mount($view);
+  } catch (err) {
+    rescue(err);
+  }
+}
+
+// Si una sección falla (por ejemplo, datos dañados), en vez de una pantalla rota se ofrece respaldar.
+function rescue(err) {
+  console.error(err);
+  $view.onclick = null;
+  $view.innerHTML = `<div class="card"><h2>Algo salió mal</h2>
+    <p class="small" style="margin-top:0">Esta sección no se pudo mostrar. Tus datos siguen guardados en el teléfono.</p>
+    <div class="actions"><button class="primary" id="rs-backup">Guardar respaldo</button><button id="rs-retry">Reintentar</button></div>
+    <p class="small muted" style="margin-bottom:0">Si se repite, guarda un respaldo y avisa a quien te compartió la app. Detalle: ${esc(String(err?.message || err))}</p></div>`;
+  $view.querySelector('#rs-backup').onclick = () => backup();
+  $view.querySelector('#rs-retry').onclick = () => show();
 }
 
 // Recordatorio semanal de respaldo: arriba de la pestaña de inicio (sea cual sea según los módulos).
 function drawNotice(home) {
+  if (readOnly)
+    return ($notice.innerHTML = `<div class="banner warn"><b>No pudimos leer tus datos guardados</b><br>Para no perder nada, la app no guardará cambios por ahora. Cierra la app por completo y vuelve a abrirla.</div>`);
   if (!home || !backupDue()) return ($notice.innerHTML = '');
   const age = backupAge();
   $notice.innerHTML = `<div class="banner warn"><b>Respalda tus datos</b><br>${age === null ? 'Aún no tienes ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`} Toma 10 segundos y te protege si pierdes o cambias el teléfono.
@@ -107,6 +126,7 @@ $notice.addEventListener('click', async (e) => {
 });
 
 window.addEventListener('hashchange', show);
+window.addEventListener('save-failed', () => toast('No se pudo guardar: el teléfono no tiene espacio disponible'));
 // "Olvidé mi PIN": borrar los datos de este teléfono (se puede restaurar un respaldo después)
 window.addEventListener('reset-all', async () => {
   await replaceState(defaults());
@@ -117,6 +137,26 @@ window.addEventListener('modules-changed', () => {
   drawTabbar();
   show();
 });
+
+// ---------- actualizaciones ----------
+// El service worker nuevo se instala solo en segundo plano; cuando toma el control,
+// avisamos para recargar y ver la versión nueva de inmediato. Se registra antes de cargar los datos
+// y del bloqueo: si no, el aviso se pierde mientras se escribe el PIN.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) showUpdateBar();
+  });
+  navigator.serviceWorker
+    .register('sw.js')
+    .then((reg) => {
+      // En iPhone la app instalada vuelve del fondo sin recargar: revisamos al volver.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch(() => {});
+}
 
 await load();
 applyTheme();
@@ -174,32 +214,14 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>📷 Escanear código de barras:</b> en el buscador de alimentos, toca la cámara y apunta al envase. Trae las calorías y macros de Open Food Facts y lo guarda en tus alimentos (la próxima vez funciona sin internet).</li>
-      <li><b>Compartir e importar el plan de dieta</b> como archivo (Dieta → abajo): ideal para pasar el plan del nutricionista o compartirlo con alguien.</li>
-      <li><b>Tu historial queda fijo:</b> las comidas que marcas guardan sus calorías de ese día, así cambiar el plan ya no altera tus registros pasados.</li>
-      <li>De la 3.6: respaldo con contraseña y bloqueo con PIN / Face ID (Ajustes → Privacidad).</li>
+      <li><b>Guardado más seguro:</b> si el teléfono falla al leer tus datos, la app ya no escribe encima; y siempre se carga la copia más reciente.</li>
+      <li><b>Deshacer:</b> antes de restaurar un respaldo o borrar todo se guarda una copia; puedes volver atrás en Ajustes → Respaldo.</li>
+      <li><b>PIN más protegido:</b> los intentos fallidos se recuerdan aunque cierres la app, y el PIN ya no viaja en los respaldos.</li>
+      <li>Respaldos con contraseña de al menos 10 caracteres y cifrado más fuerte.</li>
+      <li>Si una sección falla, verás una pantalla para guardar un respaldo en vez de una pantalla rota.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );
-}
-
-// ---------- actualizaciones ----------
-// El service worker nuevo se instala solo en segundo plano; cuando toma el control,
-// avisamos para recargar y ver la versión nueva de inmediato.
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  const hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (hadController) showUpdateBar();
-  });
-  navigator.serviceWorker
-    .register('sw.js')
-    .then((reg) => {
-      // En iPhone la app instalada vuelve del fondo sin recargar: revisamos al volver.
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') reg.update().catch(() => {});
-      });
-    })
-    .catch(() => {});
 }
 
 function showUpdateBar() {

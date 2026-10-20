@@ -68,7 +68,8 @@ export const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sáb
 export const DAYS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 // ---------- hoja inferior ----------
-export function openSheet(html, onMount) {
+// onClose se llama siempre al cerrar (botón, fondo o desde el código).
+export function openSheet(html, onMount, onClose) {
   const root = document.getElementById('sheet-root');
   root.innerHTML = `<div class="backdrop"></div><section class="sheet" role="dialog" aria-modal="true">${html}</section>`;
   document.body.classList.add('modal-open');
@@ -92,11 +93,15 @@ export function openSheet(html, onMount) {
   sheet.addEventListener('focusin', reveal);
   fit();
 
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     vv?.removeEventListener('resize', fit);
     vv?.removeEventListener('scroll', fit);
     root.innerHTML = '';
     document.body.classList.remove('modal-open');
+    onClose?.();
   };
   root.querySelector('.backdrop').addEventListener('click', close);
   sheet.addEventListener('click', (e) => {

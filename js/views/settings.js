@@ -1,4 +1,4 @@
-import { state, save, replaceState, defaults, APP_VERSION, VERSION } from '../store.js';
+import { state, save, replaceState, defaults, APP_VERSION, VERSION, getPrevious } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast } from '../util.js';
 import { MODULES, isOn, setModule } from '../modules.js';
@@ -11,11 +11,17 @@ let root;
 let bioOk = false; // ¿el teléfono tiene Face ID / huella disponible para apps web?
 biometricAvailable().then((v) => (bioOk = v));
 
+let previous = null; // copia guardada antes de la última restauración / borrado
+
 export function mount(el) {
   root = el;
   root.onclick = onClick;
   root.onchange = onChange;
   render();
+  getPrevious().then((p) => {
+    previous = p;
+    if (p && root === el) render();
+  });
 }
 
 const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -27,7 +33,7 @@ function render() {
   const hasData = anyData();
 
   root.innerHTML = `
-    ${!standalone() && isIOS() ? `<div class="banner"><b>Instálala en tu iPhone</b><br>En Safari toca <b>Compartir</b> (el cuadro con flecha) → <b>Agregar a inicio</b>. Así abre como app y tus datos quedan más seguros.</div>` : ''}
+    ${!standalone() && isIOS() ? `<div class="banner"><b>Instálala en tu iPhone</b><br>En Safari toca <b>Compartir</b> (el cuadro con flecha) → <b>Agregar a inicio</b>. Importante: la app instalada no ve lo que guardaste en Safari. Si ya usaste la app aquí, primero toca <b>Guardar respaldo</b> (más abajo) y después <b>Restaurar</b> en la app instalada.</div>` : ''}
     <div class="card"><h2>Apariencia</h2>
       <div class="small muted">Color</div>
       <div class="swatches">${PALETTES.map(
@@ -78,6 +84,7 @@ function render() {
       <p class="small muted" style="margin-top:0">Tus datos viven solo en este teléfono. Guarda un respaldo para no perderlos si cambias de teléfono, borras la app o limpias Safari.</p>
       ${hasData && stale ? `<div class="banner warn">${age === null ? 'Aún no has hecho ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`}</div>` : ''}
       <div class="small muted">Último respaldo: ${state.settings.lastBackup ? new Date(state.settings.lastBackup).toLocaleString('es-CL') : 'nunca'}</div>
+      ${previous ? `<button class="ghost block sm" data-act="undo" style="margin-top:6px">Deshacer: volver a los datos de ${esc(previous.label.toLowerCase())} (${new Date(previous.at).toLocaleString('es-CL')})</button>` : ''}
       <div class="actions"><button class="primary" data-act="export">Guardar respaldo</button><button data-act="import">Restaurar</button></div>
       <input type="file" id="file" accept=".json,application/json" hidden>
       <p class="small muted" style="margin-bottom:0">Al guardar, elige <b>Guardar en Archivos</b> (o envíatelo por WhatsApp o correo). Para pasarlo a otro teléfono, abre la app allá y toca <b>Restaurar</b>. La app te lo recordará cada 7 días.</p>
@@ -106,7 +113,7 @@ function newPinSheet(title = 'Crea tu PIN') {
       <div id="pp" style="margin-top:10px"></div><p class="small muted">Si lo olvidas no se puede recuperar: tendrías que borrar los datos y restaurar un respaldo.</p>
       <div class="actions"><button type="button" class="ghost" data-close id="cx">Cancelar</button></div>`,
       (sheet) => {
-        sheet.querySelector('#cx').onclick = () => resolve(null);
+        // (se resuelve en null también al cerrar tocando el fondo: ver onClose abajo)
         const draw = () =>
           pinPad(sheet.querySelector('#pp'), {
             length: len,
@@ -114,8 +121,8 @@ function newPinSheet(title = 'Crea tu PIN') {
             onDone(pin) {
               if (!first) return (first = pin), (sheet.querySelector('#len').hidden = true), draw();
               if (pin !== first) return toast('No coinciden. Vuelve a intentarlo.'), (first = null), (sheet.querySelector('#len').hidden = false), draw();
+              resolve(pin); // antes de cerrar: al cerrar, onClose resuelve null (y una promesa solo se resuelve una vez)
               close();
-              resolve(pin);
             },
           });
         sheet.querySelector('#len').onclick = (e) => {
@@ -126,7 +133,8 @@ function newPinSheet(title = 'Crea tu PIN') {
           draw();
         };
         draw();
-      }
+      },
+      () => resolve(null)
     );
   });
 }
@@ -135,17 +143,17 @@ function newPinSheet(title = 'Crea tu PIN') {
 function confirmPinSheet(title) {
   return new Promise((resolve) => {
     const close = openSheet(`<h3>${title}</h3><div id="pp" style="margin-top:10px"></div><div class="actions"><button type="button" class="ghost" data-close id="cx">Cancelar</button></div>`, (sheet) => {
-      sheet.querySelector('#cx').onclick = () => resolve(false);
+      // cancelar o tocar el fondo resuelve false (onClose)
       const pad = pinPad(sheet.querySelector('#pp'), {
         length: state.settings.lock.len || 4,
         title: 'PIN actual',
         async onDone(pin) {
-          if (await checkPin(pin)) return close(), resolve(true);
+          if (await checkPin(pin)) return resolve(true), close();
           pad.shake();
           toast('PIN incorrecto');
         },
       });
-    });
+    }, () => resolve(false));
   });
 }
 
@@ -156,7 +164,7 @@ async function onSecurity(kind, on, input) {
     if (!pin) return;
     await setPin(pin);
     toast('Bloqueo activado');
-    if (bioOk && confirm('¿Quieres usar también Face ID o tu huella para desbloquear?')) await enableBio();
+    if (bioOk) bioOfferSheet(); // botón directo: el iPhone exige un toque reciente para Face ID
   } else if (kind === 'lock') {
     if (!(await confirmPinSheet('Desactivar bloqueo'))) return;
     state.settings.lock = { after: state.settings.lock.after ?? 0 };
@@ -168,6 +176,19 @@ async function onSecurity(kind, on, input) {
     save();
   }
   render();
+}
+
+function bioOfferSheet() {
+  openSheet(
+    `<h3>¿Usar Face ID o huella?</h3><p class="muted small" style="margin-top:0">Desbloquea la app sin escribir el PIN. El PIN sigue sirviendo siempre.</p>
+    <div class="actions"><button class="ghost" data-close>Ahora no</button><button class="primary" id="bio">Activar</button></div>`,
+    (sheet, close) =>
+      (sheet.querySelector('#bio').onclick = async () => {
+        await enableBio();
+        close();
+        render();
+      })
+  );
 }
 
 async function enableBio() {
@@ -201,6 +222,14 @@ function onChange(e) {
 async function onClick(e) {
   const t = e.target.closest('[data-act]');
   if (!t) return;
+  if (t.dataset.act === 'undo') {
+    if (!previous || !confirm('Se reemplazarán los datos actuales por la copia guardada. ¿Continuar?')) return;
+    await replaceState(previous.data, { label: 'Antes de deshacer', keepLock: true });
+    window.dispatchEvent(new Event('modules-changed'));
+    toast('Listo: volviste a los datos anteriores');
+    previous = await getPrevious();
+    return render();
+  }
   if (t.dataset.act === 'lock-after') return (state.settings.lock.after = +t.dataset.v), save(), render();
   if (t.dataset.act === 'pin-change') {
     if (!(await confirmPinSheet('Cambiar PIN'))) return;
@@ -217,9 +246,9 @@ async function onClick(e) {
   else if (t.dataset.act === 'reset') {
     if (!confirm('Se borrarán TODOS tus datos de este teléfono (dieta, calorías, gastos y ahorro). ¿Continuar?')) return;
     if (!confirm('Última confirmación: esto no se puede deshacer, salvo que tengas un respaldo. ¿Borrar todo?')) return;
-    await replaceState(defaults());
+    await replaceState(defaults(), { label: 'Antes de borrar todos los datos' });
     window.dispatchEvent(new Event('modules-changed'));
-    toast('Datos borrados');
+    toast('Datos borrados (puedes deshacerlo en Respaldo)');
     render();
   }
 }
@@ -240,9 +269,9 @@ async function restore(file) {
     if (Number(data.v) > VERSION && !confirm('Este respaldo es de una versión más nueva de la app. Actualiza la app antes de restaurarlo para no perder datos. ¿Restaurar igual?')) return;
     const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-CL') : 'fecha desconocida';
     if (!confirm(`Se reemplazarán los datos actuales por los del respaldo (${when}). ¿Continuar?`)) return;
-    await replaceState(data);
+    await replaceState(data, { label: 'Antes de restaurar un respaldo', keepLock: true });
     window.dispatchEvent(new Event('modules-changed'));
-    toast('Respaldo restaurado');
+    toast('Respaldo restaurado (puedes deshacerlo en Respaldo)');
     render();
   } catch {
     toast('Ese archivo no es un respaldo válido');

@@ -1,7 +1,7 @@
 // Seguridad y privacidad: respaldo cifrado con contraseña, bloqueo de la app (PIN y Face ID / huella)
 // y ocultar el contenido al salir de la app. Todo usa la criptografía del propio navegador (Web Crypto
 // y WebAuthn): nada sale del teléfono.
-import { state, save } from './store.js';
+import { state, save, saveNow } from './store.js';
 import { esc, openSheet, toast } from './util.js';
 
 const enc = new TextEncoder();
@@ -19,7 +19,7 @@ export const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0
 
 // ---------- respaldo cifrado ----------
 // AES-GCM 256 con clave derivada de la contraseña (PBKDF2-SHA256). Sin la contraseña no se puede leer.
-const ITER = 250000;
+const ITER = 600000; // recomendación OWASP para PBKDF2-SHA256 (los respaldos guardan su propio valor)
 
 async function keyFrom(password, salt, iterations) {
   const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
@@ -49,9 +49,8 @@ export function askBackupPassword(payload) {
       `<h3>Respaldo protegido</h3>
       <p class="muted small" style="margin-top:0">Este respaldo está cifrado. Escribe la contraseña con que lo guardaste.</p>
       <form id="pw"><label class="field">Contraseña<input name="p" type="password" autocomplete="current-password" required></label>
-      <div class="actions"><button type="button" class="ghost" data-close id="cx">Cancelar</button><button class="primary" id="ok">Abrir respaldo</button></div></form>`,
+      <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button class="primary" id="ok">Abrir respaldo</button></div></form>`,
       (sheet) => {
-        sheet.querySelector('#cx').onclick = () => !done && ((done = true), resolve(null));
         sheet.querySelector('#pw').addEventListener('submit', async (ev) => {
           ev.preventDefault();
           const btn = sheet.querySelector('#ok');
@@ -68,7 +67,8 @@ export function askBackupPassword(payload) {
             toast('Contraseña incorrecta');
           }
         });
-      }
+      },
+      () => !done && ((done = true), resolve(null))
     );
   });
 }
@@ -141,6 +141,7 @@ async function verifyBiometric(credId) {
 }
 
 // ---------- bloqueo ----------
+const fmtWait = (ms) => (ms >= 60000 ? `${Math.ceil(ms / 60000)} min` : `${Math.ceil(ms / 1000)} s`);
 export const lockEnabled = () => !!lockCfg().enabled && !!lockCfg().hash;
 
 export async function setPin(pin) {
@@ -167,9 +168,10 @@ export function lockScreen() {
     </div>`;
     document.body.appendChild(el);
     document.body.classList.add('locked');
-    let fails = 0;
-    let waitUntil = 0;
+    // intentos fallidos guardados (cerrar y abrir la app no los reinicia); desde el 5º, espera creciente
+    const waitLeft = () => Math.max(0, (lockCfg().until || 0) - Date.now());
     const unlock = () => {
+      if (lockCfg().fails || lockCfg().until) (state.settings.lock.fails = 0), (state.settings.lock.until = 0), saveNow();
       el.remove();
       document.body.classList.remove('locked');
       showing = null;
@@ -179,14 +181,17 @@ export function lockScreen() {
       length: cfg.len || 4,
       title: 'Ingresa tu PIN',
       async onDone(pin) {
-        if (Date.now() < waitUntil) return toast(`Espera ${Math.ceil((waitUntil - Date.now()) / 1000)} s`);
+        if (waitLeft()) return toast(`Demasiados intentos: espera ${fmtWait(waitLeft())}`);
         if (await checkPin(pin)) return unlock();
         pad.shake();
-        if (++fails >= 5) {
-          waitUntil = Date.now() + 30000;
-          fails = 0;
-          toast('Demasiados intentos: espera 30 segundos');
-        } else toast('PIN incorrecto');
+        const lk = state.settings.lock;
+        lk.fails = (lk.fails || 0) + 1;
+        if (lk.fails >= 5) {
+          // 30 s, 1 min, 2 min, 4 min… hasta 1 hora
+          lk.until = Date.now() + Math.min(3600000, 30000 * 2 ** (lk.fails - 5));
+          toast(`Demasiados intentos: espera ${fmtWait(waitLeft())}`);
+        } else toast(`PIN incorrecto (${5 - lk.fails} ${5 - lk.fails === 1 ? 'intento' : 'intentos'} antes de esperar)`);
+        saveNow();
       },
     });
     el.querySelector('#bio')?.addEventListener('click', async () => {
