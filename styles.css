@@ -373,3 +373,5 @@ html, body, button, a, input, select, textarea, label, .item { touch-action: man
 .check-sp { width: 30px; flex: none; }
 .macros.m4 { grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .macros.m4 b { font-size: 16px; }
+/* casillas y controles nativos con el color de la paleta */
+:root { accent-color: var(--primary); }

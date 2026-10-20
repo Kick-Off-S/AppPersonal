@@ -11,6 +11,8 @@ let ym = monthKey(todayStr());
 
 const expensesOf = (m) => state.finance.expenses.filter((e) => monthKey(e.date) === m);
 const movedOf = (m) => state.savings.filter((s) => s.type === 'in' && s.ym === m).reduce((a, s) => a + s.amount, 0);
+// retiros de ahorro usados en el mes: entran como ingreso (así el gasto que pagaron queda cubierto)
+const withdrawalsOf = (m) => state.savings.filter((s) => s.type === 'out' && s.ym === m);
 const fixedFor = (m) => state.finance.fixed.filter((f) => f.from <= m).sort((a, b) => a.day - b.day);
 const paidOf = (f, m) => state.finance.expenses.find((e) => e.fixedId === f.id && monthKey(e.date) === m);
 
@@ -34,12 +36,13 @@ function summary(m) {
   const { value: salary, inherited } = incomeOf(m);
   const extras = extrasOf(m).reduce((a, x) => a + x.amount, 0);
   const lm = loanMonth(m);
-  const income = salary + extras + lm.borrowedIn + lm.repaidIn;
+  const withdrawn = withdrawalsOf(m).reduce((a, s) => a + s.amount, 0);
+  const income = salary + extras + lm.borrowedIn + lm.repaidIn + withdrawn;
   const spent = expensesOf(m).reduce((a, e) => a + e.amount, 0);
   const moved = movedOf(m);
   const pending = fixedFor(m).filter((f) => !paidOf(f, m)).reduce((a, f) => a + f.amount, 0) + lm.duePending;
   const lent = lm.lentOut;
-  return { salary, inherited, extras, lm, income, spent, moved, pending, lent, avail: income - spent - moved - pending - lent };
+  return { salary, inherited, extras, withdrawn, lm, income, spent, moved, pending, lent, avail: income - spent - moved - pending - lent };
 }
 
 // Compras en cuotas con cuota este mes o cuotas pendientes después.
@@ -57,7 +60,7 @@ function installmentGroups(m) {
     .filter((g) => (g.cur || g.leftN) && monthKey(g.first.date) <= m);
 }
 
-const allCats = () => [...new Set([...DEFAULT_CATS, ...state.finance.expenses.map((e) => e.cat), ...state.finance.fixed.map((f) => f.cat)])];
+export const allCats = () => [...new Set([...DEFAULT_CATS, ...state.finance.expenses.map((e) => e.cat), ...state.finance.fixed.map((f) => f.cat)])];
 const pad = (n) => String(n).padStart(2, '0');
 const budgets = () => state.finance.budgets;
 const spentIn = (cat, m) => expensesOf(m).filter((e) => e.cat === cat).reduce((a, e) => a + e.amount, 0);
@@ -87,7 +90,7 @@ export function mount(el) {
 
 function render() {
   const list = expensesOf(ym).sort((a, b) => b.date.localeCompare(a.date));
-  const { salary, inherited, extras, lm, income, spent, moved, pending, lent, avail } = summary(ym);
+  const { salary, inherited, extras, withdrawn, lm, income, spent, moved, pending, lent, avail } = summary(ym);
   const extraList = extrasOf(ym);
   const groups = installmentGroups(ym);
   const missingSalary = variable() && state.finance.income[ym] === undefined;
@@ -132,7 +135,13 @@ function render() {
         )
         .join('')}
       ${lm.incomes.map((r) => `<div class="item"><div class="grow"><div class="t">${esc(r.label)}</div><div class="s">Préstamo</div></div><div class="amount pos">+${money(r.amount)}</div></div>`).join('')}
-      ${extras || lm.incomes.length ? `<div class="row between" style="margin-top:8px"><span class="muted small">Total</span><b>${money(income)}</b></div>` : '<div class="small muted">Bonos, ventas, honorarios, devoluciones… todo lo que entra solo este mes, aparte del sueldo.</div>'}
+      ${withdrawalsOf(ym)
+        .map(
+          (s) => `<a class="item" href="#savings" style="color:inherit;text-decoration:none;font-weight:inherit"><div class="grow"><div class="t">Retiro de ahorro${s.note ? ': ' + esc(s.note) : ''}</div><div class="s">${shortDate(s.date)} · desde Ahorro</div></div>
+          <div class="amount pos">+${money(s.amount)}</div></a>`
+        )
+        .join('')}
+      ${extras || withdrawn || lm.incomes.length ? `<div class="row between" style="margin-top:8px"><span class="muted small">Total</span><b>${money(income)}</b></div>` : '<div class="small muted">Bonos, ventas, honorarios, devoluciones… todo lo que entra solo este mes, aparte del sueldo.</div>'}
     </div>
 
     <button class="primary block" data-act="add">+ Agregar gasto</button>
@@ -212,7 +221,7 @@ function render() {
       list.length
         ? list
             .map(
-              (e) => `<div class="item" data-act="edit" data-id="${e.id}"><div class="grow"><div class="t">${esc(e.desc || e.cat)}${e.fixedId ? ' <span class="muted small">· fijo</span>' : ''}${e.loanId ? ' <span class="muted small">· préstamo</span>' : ''}</div>
+              (e) => `<div class="item" data-act="edit" data-id="${e.id}"><div class="grow"><div class="t">${esc(e.desc || e.cat)}${e.fixedId ? ' <span class="muted small">· fijo</span>' : ''}${e.loanId ? ' <span class="muted small">· préstamo</span>' : ''}${e.savingsId ? ' <span class="muted small">· con ahorro</span>' : ''}</div>
                 <div class="s">${e.desc ? `${esc(e.cat)} · ` : ''}${shortDate(e.date)}${e.cuota ? ` · cuota ${e.cuota[0]}/${e.cuota[1]}` : ''}</div></div><div class="amount">${money(e.amount)}</div></div>`
             )
             .join('')

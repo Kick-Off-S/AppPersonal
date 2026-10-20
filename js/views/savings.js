@@ -3,6 +3,7 @@
 // Los intereses no vienen del sueldo: suman al ahorro pero no cuentan como "aportado".
 import { state, save } from '../store.js';
 import { esc, uid, money, num, parseMoney, openSheet, toast, todayStr, monthKey, monthLabel, shortDate } from '../util.js';
+import { allCats } from './finance.js';
 
 export const KINDS = {
   cuenta: 'Cuenta de ahorro',
@@ -173,7 +174,8 @@ function deleteButton(editing) {
 
 function bindDelete(sheet, item, close) {
   sheet.querySelector('#del')?.addEventListener('click', () => {
-    if (!confirm('¿Eliminar este movimiento?')) return;
+    if (!confirm(item.expenseId ? '¿Eliminar este retiro? También se borra el gasto que registraste con él.' : '¿Eliminar este movimiento?')) return;
+    if (item.expenseId) state.finance.expenses = state.finance.expenses.filter((e) => e.id !== item.expenseId);
     state.savings = state.savings.filter((s) => s !== item);
     save();
     close();
@@ -232,11 +234,16 @@ function accountSheet(acc) {
 }
 
 // ---------- aporte / retiro ----------
+// Aporte / retiro. Se conectan con Gastos:
+//   aporte con "sale de mi dinero de este mes" -> se descuenta del disponible (ym)
+//   retiro con "usar en el mes" -> suma a los ingresos del mes (ym); opcionalmente crea el gasto que paga (expenseId)
 function moveSheet(kind, item) {
   const editing = !!item;
   const type = item?.type || kind;
   const isIn = type === 'in';
   const notes = [...new Set(state.savings.filter((s) => s.type === type && s.note).map((s) => s.note))].slice(0, 12);
+  const linked = item?.expenseId ? state.finance.expenses.find((e) => e.id === item.expenseId) : null;
+  const useMonth = editing ? !!item.ym : true;
   openSheet(
     `<h3>${editing ? 'Editar movimiento' : isIn ? 'Nuevo aporte' : 'Retiro de ahorro'}</h3>
     <form id="f">
@@ -245,20 +252,59 @@ function moveSheet(kind, item) {
       <label class="field">${isIn ? 'Detalle (opcional)' : '¿Para qué fue?'}<input name="note" list="notes" maxlength="60" ${isIn ? '' : 'required'} value="${esc(item?.note)}" placeholder="${isIn ? 'Ej: Bono, sobrante del mes' : 'Ej: Emergencia, viaje, arreglo auto'}" autocomplete="off"></label>
       <datalist id="notes">${notes.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
       <label class="field">Fecha<input name="date" type="date" required value="${item?.date || todayStr()}"></label>
+      ${
+        isIn
+          ? `<label class="cuotas"><input type="checkbox" name="month" ${useMonth ? 'checked' : ''}> <span>Sale de mi dinero de este mes <small class="muted">(se descuenta del disponible en Gastos)</small></span></label>`
+          : `<label class="cuotas"><input type="checkbox" name="month" ${useMonth ? 'checked' : ''}> <span>Usar este dinero en el mes <small class="muted">(suma a tus ingresos en Gastos)</small></span></label>
+        <label class="cuotas"><input type="checkbox" name="exp" ${!editing || linked ? 'checked' : ''}> <span>Registrar también el gasto que pagaste</span></label>
+        <label class="field" id="cat-w">Categoría del gasto<input name="cat" list="cats" maxlength="40" value="${esc(linked?.cat || '')}" placeholder="Ej: Transporte, Salud, Ocio" autocomplete="off"></label>
+        <datalist id="cats">${allCats().map((c) => `<option value="${esc(c)}">`).join('')}</datalist>`
+      }
       <div class="actions">${deleteButton(editing)}<button class="primary">Guardar</button></div>
     </form>`,
     (sheet, close) => {
-      sheet.querySelector('#f').addEventListener('submit', (ev) => {
+      const form = sheet.querySelector('#f');
+      const syncCat = () => {
+        if (isIn) return;
+        // el gasto solo tiene sentido si el dinero se usa en el mes
+        form.elements.exp.disabled = !form.elements.month.checked;
+        if (!form.elements.month.checked) form.elements.exp.checked = false;
+        sheet.querySelector('#cat-w').hidden = !form.elements.exp.checked;
+      };
+      form.onchange = syncCat;
+      syncCat();
+      form.addEventListener('submit', (ev) => {
         ev.preventDefault();
-        const f = new FormData(ev.target);
+        const f = new FormData(form);
         const data = { amount: parseMoney(f.get('amount')), note: f.get('note').trim(), date: f.get('date'), acc: f.get('acc') };
         if (!data.amount) return toast('Ingresa un monto');
+        const inMonth = !!f.get('month');
+        const withExp = !isIn && inMonth && !!f.get('exp');
+        const cat = (f.get('cat') || '').trim();
+        if (withExp && !cat) return toast('Elige la categoría del gasto');
         const next = editing ? state.savings.map((s) => (s === item ? { ...s, ...data } : s)) : [...state.savings, { id: uid(), type, ...data }];
         if (!isIn && balanceOf(data.acc, next) < 0 && !confirm(`Ese retiro es mayor que el saldo de ${accName(data.acc)} (${money(balanceOf(data.acc))}). ¿Registrar igual?`)) return;
-        if (editing) Object.assign(item, data);
-        else state.savings.push(next[next.length - 1]);
+        const mv = editing ? Object.assign(item, data) : next[next.length - 1];
+        if (!editing) state.savings.push(mv);
+        if (inMonth) mv.ym = monthKey(data.date);
+        else delete mv.ym;
+        // gasto asociado al retiro: crear, actualizar o quitar
+        const ex = mv.expenseId ? state.finance.expenses.find((e) => e.id === mv.expenseId) : null;
+        if (withExp) {
+          const exData = { amount: data.amount, cat, desc: data.note, date: data.date, savingsId: mv.id };
+          if (ex) Object.assign(ex, exData);
+          else {
+            const id = uid();
+            state.finance.expenses.push({ id, ...exData });
+            mv.expenseId = id;
+          }
+        } else if (ex) {
+          state.finance.expenses = state.finance.expenses.filter((e) => e !== ex);
+          delete mv.expenseId;
+        }
         save();
         close();
+        if (!isIn && inMonth) toast(withExp ? 'Retiro y gasto registrados en Gastos' : 'Retiro sumado a tus ingresos del mes');
         render();
       });
       bindDelete(sheet, item, close);

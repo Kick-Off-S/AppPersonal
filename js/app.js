@@ -166,12 +166,9 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Armar preparaciones:</b> en el buscador, pestaña <b>Armar</b>. Arma tu sándwich, ensalada o batido ingrediente por ingrediente (ej: ciabatta + queso + jamón + tomate + aceite) y ve las calorías y macros exactas.</li>
-      <li>Guárdalo en <b>tus alimentos</b> para repetirlo con un toque, y edita sus ingredientes cuando quieras.</li>
-      <li><b>Más panes:</b> ciabatta, baguette, frica, completo, hamburguesa, brioche, multigrano, sin gluten, masa madre, coliza, dobladita, croissant y más, varios con tamaños.</li>
-      <li><b>Más rellenos y salsas:</b> cheddar, mozzarella, salame, tocino, mechada, churrasco, huevo frito, pesto, aioli…</li>
-      <li>La lista de compras desarma tus preparaciones en sus ingredientes.</li>
-      <li>De la 3.3: sueldo variable, otros ingresos, préstamos, cuotas mejoradas y bebidas.</li>
+      <li><b>Ahorro y Gastos conectados:</b> al retirar de tu ahorro, el dinero suma a tus ingresos del mes y puedes registrar en el mismo paso el gasto que pagaste. Así cada retiro queda justificado.</li>
+      <li>Los aportes desde Ahorro pueden descontarse de tu disponible del mes ("Sale de mi dinero de este mes").</li>
+      <li>De la 3.4: pestaña <b>Armar</b> para sándwiches y preparaciones, y muchos panes y rellenos nuevos.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );
