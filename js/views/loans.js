@@ -13,6 +13,8 @@ const pad = (n) => String(n).padStart(2, '0');
 export const scheduleOf = (l) => Array.from({ length: l.n }, (_, k) => ({ i: k + 1, ym: addMonths(l.start, k) }));
 const cuotaIn = (l, ym) => scheduleOf(l).find((c) => c.ym === ym);
 const paidExpense = (l, ym) => state.finance.expenses.find((e) => e.loanId === l.id && e.cuotaYm === ym);
+// Monto de la cuota i. Si el valor se calculó solo (auto), la última absorbe el redondeo para que sumen el monto.
+export const cuotaOf = (l, i) => (l.auto && i === l.n ? Math.max(0, l.amount - l.cuota * (l.n - 1)) : l.cuota);
 // ¿cuota resuelta? (pagada / cobrada, o marcada como pagada antes de usar la app)
 export function isSettled(l, c) {
   if (c.i <= (l.prepaid || 0)) return true;
@@ -20,7 +22,7 @@ export function isSettled(l, c) {
 }
 export function remainingOf(l) {
   const left = scheduleOf(l).filter((c) => !isSettled(l, c));
-  return { count: left.length, amount: left.length * l.cuota };
+  return { count: left.length, amount: left.reduce((a, c) => a + cuotaOf(l, c.i), 0) };
 }
 const endYm = (l) => addMonths(l.start, l.n - 1);
 const who = (l) => (l.dir === 'lent' ? `Le prestaste a ${l.person}` : `Te prestó ${l.person}`);
@@ -36,8 +38,8 @@ export function loanMonth(ym) {
     }
     const c = cuotaIn(l, ym);
     if (!c || c.i <= (l.prepaid || 0)) continue;
-    if (l.dir === 'lent' && l.received?.[ym]) (repaidIn += l.cuota), incomes.push({ label: `${l.person} te devolvió (cuota ${c.i}/${l.n})`, amount: l.cuota });
-    if (l.dir === 'borrowed' && !paidExpense(l, ym)) duePending += l.cuota;
+    if (l.dir === 'lent' && l.received?.[ym]) (repaidIn += cuotaOf(l, c.i)), incomes.push({ label: `${l.person} te devolvió (cuota ${c.i}/${l.n})`, amount: cuotaOf(l, c.i) });
+    if (l.dir === 'borrowed' && !paidExpense(l, ym)) duePending += cuotaOf(l, c.i);
   }
   return { lentOut, borrowedIn, repaidIn, duePending, incomes };
 }
@@ -55,7 +57,7 @@ export function toggleCuota(l, ym) {
     if (ex) state.finance.expenses = state.finance.expenses.filter((e) => e !== ex);
     else {
       const date = ym === monthKey(todayStr()) ? todayStr() : `${ym}-${pad(Math.min(+l.date.slice(8, 10) || 1, 28))}`;
-      state.finance.expenses.push({ id: uid(), loanId: l.id, cuotaYm: ym, amount: l.cuota, cat: 'Deudas / Créditos', desc: `Cuota ${c.i}/${l.n} préstamo de ${l.person}`, date });
+      state.finance.expenses.push({ id: uid(), loanId: l.id, cuotaYm: ym, amount: cuotaOf(l, c.i), cat: 'Deudas / Créditos', desc: `Cuota ${c.i}/${l.n} préstamo de ${l.person}`, date });
       vibrate();
     }
   }
@@ -84,7 +86,7 @@ export function loansCard(ym) {
               ${active ? `<button class="check ${done ? 'on' : ''}" data-act="loan-tick" data-id="${l.id}" aria-label="${l.dir === 'lent' ? 'Marcar cuota cobrada' : 'Marcar cuota pagada'}" aria-pressed="${done}">✓</button>` : '<span class="check-sp"></span>'}
               <div class="grow" data-act="loan-open" data-id="${l.id}"><div class="t">${esc(who(l))}</div>
                 <div class="s">${active ? `Cuota ${c.i}/${l.n} ${l.dir === 'lent' ? (done ? 'cobrada' : 'por cobrar') : done ? 'pagada' : 'por pagar'}` : 'Sin cuota este mes'} · ${r.count ? `quedan ${money(r.amount)}` : '¡completo!'}</div></div>
-              <div class="amount ${l.dir === 'lent' ? 'pos' : 'neg'}">${active ? money(l.cuota) : ''}</div></div>`;
+              <div class="amount ${l.dir === 'lent' ? 'pos' : 'neg'}">${active ? money(cuotaOf(l, c.i)) : ''}</div></div>`;
             })
             .join('')
         : '<div class="small muted" style="margin-top:8px">Registra lo que prestas ("le presté $100.000 a Juan en 4 cuotas") o lo que te prestan, y marca cada cuota al pagarla o cobrarla.</div>'
@@ -124,9 +126,10 @@ export function loanSheet(l, onDone) {
       const calc = () => {
         const amount = parseMoney(form.elements.amount.value);
         const n = parseInt(form.elements.n.value, 10) || 0;
+        const auto = !parseMoney(form.elements.cuota.value);
         const cuota = parseMoney(form.elements.cuota.value) || (amount && n ? Math.round(amount / n) : 0);
         if (!amount || !n) return ($('#calc').textContent = '');
-        const total = cuota * n;
+        const total = auto ? amount : cuota * n;
         const extra = total - amount;
         const end = addMonths(form.elements.start.value || nextMonth, n - 1);
         $('#calc').innerHTML = `${n} cuota${n > 1 ? 's' : ''} de <b>${money(cuota)}</b> · total ${money(total)}${extra > 0 ? ` (interés ${money(extra)})` : ''} · ${n > 1 ? `de ${monthShort(form.elements.start.value || nextMonth)} a ${monthShort(end)} ${end.slice(0, 4)}` : monthLabel(end)}`;
@@ -150,6 +153,7 @@ export function loanSheet(l, onDone) {
           date: f.get('date'),
           n,
           cuota: parseMoney(f.get('cuota')) || Math.round(amount / n),
+          auto: !parseMoney(f.get('cuota')),
           start: f.get('start'),
           prepaid: Math.max(0, Math.min(n, parseInt(f.get('prepaid'), 10) || 0)),
           counted: !!f.get('counted'),
@@ -160,7 +164,10 @@ export function loanSheet(l, onDone) {
           // si cambió de dirección, las cuotas pagadas como gasto ya no aplican
           if (l.dir !== dir) state.finance.expenses = state.finance.expenses.filter((e) => e.loanId !== l.id);
           Object.assign(l, data);
-          for (const e of state.finance.expenses.filter((x) => x.loanId === l.id)) e.amount = data.cuota;
+          for (const e of state.finance.expenses.filter((x) => x.loanId === l.id)) {
+            const c = scheduleOf(l).find((x) => x.ym === e.cuotaYm);
+            if (c) e.amount = cuotaOf(l, c.i);
+          }
           // cuotas pagadas que quedaron fuera del nuevo calendario (o dentro de "ya pagadas")
           const sched = scheduleOf(l);
           const stray = state.finance.expenses.filter((e) => e.loanId === l.id && !sched.some((c) => c.ym === e.cuotaYm && c.i > (l.prepaid || 0)));
@@ -207,7 +214,7 @@ export function loanDetail(l, onDone) {
             const ok = isSettled(l, c);
             return `<div class="item ${ok ? 'done' : ''}">${
               pre ? '<span class="check on" style="opacity:.5">✓</span>' : `<button class="check ${ok ? 'on' : ''}" data-ym="${c.ym}" aria-pressed="${ok}" aria-label="Cuota ${c.i}">✓</button>`
-            }<div class="grow"><div class="t">Cuota ${c.i}</div><div class="s">${monthLabel(c.ym)}${pre ? ' · antes de anotarlo' : ''}</div></div><div class="amount">${money(l.cuota)}</div></div>`;
+            }<div class="grow"><div class="t">Cuota ${c.i}</div><div class="s">${monthLabel(c.ym)}${pre ? ' · antes de anotarlo' : ''}</div></div><div class="amount">${money(cuotaOf(l, c.i))}</div></div>`;
           })
           .join('');
       };

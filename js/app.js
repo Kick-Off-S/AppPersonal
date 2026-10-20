@@ -214,10 +214,11 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Historial más fiel:</b> editar, borrar o agregar comidas del plan (o editar una rutina) ya no cambia tus días pasados, tu racha ni tu % cumplido.</li>
-      <li><b>Calorías de ejercicio más realistas:</b> ahora se descuenta el gasto en reposo (antes se sobrestimaba).</li>
-      <li><b>Finanzas:</b> pasar el sueldo a variable conserva los meses anteriores; editar un sobrante ya no lo cambia de mes; editar un préstamo o eliminar una cuenta de ahorro deja todo cuadrado.</li>
-      <li>La app corrige sola datos dañados de respaldos o planes importados.</li>
+      <li>Lista de compras: un mismo producto en distintos tamaños queda en una sola fila ("2 unidades M + 1 unidad L").</li>
+      <li>Préstamos y cuotas cuadran al peso: la última cuota ajusta el redondeo.</li>
+      <li>Editar un gasto pagado con ahorro actualiza también el retiro.</li>
+      <li>Mejores textos de cantidades ("2 scoops", "2 vasos medianos"), "1.200" en Manual se lee como mil doscientos, y bebidas en "cc" o "Lt" se reconocen como líquidos al escanear.</li>
+      <li>Editar los ingredientes de una preparación guardada ya no la duplica.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

@@ -145,16 +145,22 @@ function dietSheet() {
       };
       $('#ok').onclick = () => {
         const { list } = fromDiet(days);
-        let added = 0;
+        // un mismo producto en distintas unidades o tamaños (2 unidades M y 1 unidad L) va en una sola fila
+        const merged = new Map();
         for (const x of list) {
-          // si ya está pendiente en la lista, actualizamos la cantidad en vez de duplicar
-          const ex = sh().items.find((i) => !i.done && i.name.toLowerCase() === x.name.toLowerCase());
+          const k = x.name.toLowerCase();
+          merged.set(k, merged.has(k) ? { ...merged.get(k), qty: `${merged.get(k).qty} + ${x.qty}` } : x);
+        }
+        const before = sh().items.filter((i) => !i.done);
+        for (const x of merged.values()) {
+          // si ya estaba pendiente en la lista, se actualiza la cantidad en vez de duplicar
+          const ex = before.find((i) => i.name.toLowerCase() === x.name.toLowerCase());
           if (ex) ex.qty = x.qty;
-          else sh().items.push({ id: uid(), name: x.name, qty: x.qty, done: false }), added++;
+          else sh().items.push({ id: uid(), name: x.name, qty: x.qty, done: false });
         }
         save();
         close();
-        toast(`${list.length} productos en la lista`);
+        toast(`${merged.size} producto${merged.size === 1 ? '' : 's'} en la lista`);
         render();
       };
       draw();

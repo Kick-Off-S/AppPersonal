@@ -436,7 +436,7 @@ function expenseSheet(exp) {
         const { n, total, cv, paid } = plan();
         sheet.querySelector('#n-hint').hidden = !(n >= 2 && total);
         const extra = cv * n - total;
-        sheet.querySelector('#n-hint').textContent = `${n} cuotas de ${money(cv)} · total ${money(cv * n)}${extra > 0 ? ` (interés ${money(extra)})` : ''}${
+        sheet.querySelector('#n-hint').textContent = `${n} cuotas de ${money(cv)} · total ${money(plan().custom ? cv * n : total)}${extra > 0 && plan().custom ? ` (interés ${money(extra)})` : ''}${
           paid ? ` · se anotan de la cuota ${paid + 1} a la ${n}` : ''
         } desde ${monthLabel(monthKey(form.elements.date.value || defDate))}`;
       };
@@ -458,13 +458,18 @@ function expenseSheet(exp) {
         const n = cuotas();
         if (split?.checked && n < 2) return toast('Indica de 2 a 60 cuotas');
         const pl = plan();
-        if (editing) Object.assign(exp, data);
+        if (editing) {
+          Object.assign(exp, data);
+          // gasto pagado con un retiro de ahorro: el retiro sigue al gasto
+          const mv = exp.savingsId && state.savings.find((s) => s.id === exp.savingsId);
+          if (mv) Object.assign(mv, { amount: data.amount, date: data.date, note: data.desc || mv.note, ...(mv.ym ? { ym: monthKey(data.date) } : {}) });
+        }
         else if (n >= 2) {
           const groupId = uid();
           // sin valor de cuota: la diferencia por redondeo va en la primera cuota
           for (let i = pl.paid; i < n; i++) {
             const amount = !pl.custom && i === 0 ? data.amount - pl.cv * (n - 1) : pl.cv;
-            state.finance.expenses.push({ id: uid(), ...data, amount, date: shiftDate(data.date, i - pl.paid), groupId, cuota: [i + 1, n], total: pl.cv * n });
+            state.finance.expenses.push({ id: uid(), ...data, amount, date: shiftDate(data.date, i - pl.paid), groupId, cuota: [i + 1, n], total: pl.custom ? pl.cv * n : data.amount });
           }
         } else state.finance.expenses.push({ id: uid(), ...data });
         save();
@@ -482,6 +487,8 @@ function expenseSheet(exp) {
         } else {
           if (!confirm('¿Eliminar este gasto?')) return;
           state.finance.expenses = state.finance.expenses.filter((x) => x.id !== exp.id);
+          const mv = exp.savingsId && state.savings.find((s) => s.id === exp.savingsId);
+          if (mv) delete mv.expenseId; // el retiro de ahorro queda, sin gasto asociado
         }
         save();
         close();

@@ -87,7 +87,8 @@ export function offToFood(code, p) {
   let kcal100 = n['energy-kcal_100g'];
   if (kcal100 == null && n.energy_100g != null) kcal100 = n.energy_100g / 4.184; // kJ -> kcal
   if (kcal100 == null) return null;
-  const u = /\d\s*(ml|cl|l)\b/i.test(p.quantity || '') ? 'ml' : 'g';
+  // líquidos: ml, cl, cc, l, lt, lts, litro(s) ("500 cc", "1,5 Lt" son comunes en Chile)
+  const u = /\d\s*(ml|cl|cc|l|lt|lts|litros?)\b/i.test(p.quantity || '') ? 'ml' : 'g';
   const sq = parseFloat(p.serving_quantity);
   const per = sq > 0 && sq < 2000 ? sq : 100;
   const k = per / 100;

@@ -49,22 +49,30 @@ const KEYS = [
 const gStr = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 
 // Plural / singular simple de la primera palabra ("unidad" <-> "unidades", "porción" <-> "porciones").
+const plural1 = (w) => {
+  if (/s$/i.test(w) || /^\(|^[^a-záéíóúñ]/i.test(w)) return w;
+  if (/ión$/i.test(w)) return w.slice(0, -3) + 'iones';
+  if (/z$/i.test(w)) return w.slice(0, -1) + 'ces';
+  if (/([lnrdj]|ch)$/i.test(w)) return w + 'es'; // unidades, sándwiches
+  return w + 's'; // vocales y extranjerismos: tazas, scoops, shots
+};
+// También el adjetivo que sigue (vaso mediano → vasos medianos); el resto queda igual.
+const ADJ = /^(mediano|mediana|grande|chico|chica|pequeño|pequeña|individual|entero|entera|picado|picada)$/i;
 function plural(noun) {
-  const [w, ...rest] = noun.split(' ');
-  let p = w;
-  if (/s$/i.test(w)) p = w;
-  else if (/ión$/i.test(w)) p = w.slice(0, -3) + 'iones';
-  else if (/[aeiouáéó]$/i.test(w)) p = w + 's';
-  else p = w + 'es';
-  return [p, ...rest].join(' ');
+  const [w, a, ...rest] = noun.split(' ');
+  return [plural1(w), ...(a ? [ADJ.test(a) ? plural1(a) : a] : []), ...rest].join(' ');
 }
+const singular1 = (w) => {
+  if (/iones$/i.test(w)) return w.slice(0, -5) + 'ión';
+  if (/ces$/i.test(w)) return w.slice(0, -3) + 'z';
+  if (/([lnrdj]|ch)es$/i.test(w)) return w.slice(0, -2);
+  if (/s$/i.test(w) && w.length > 3) return w.slice(0, -1);
+  return w;
+};
 function singular(noun) {
-  const [w, ...rest] = noun.split(' ');
-  let s = w;
-  if (/iones$/i.test(w)) s = w.slice(0, -5) + 'ión';
-  else if (/(d|ch|l|n|r)es$/i.test(w)) s = w.slice(0, -2);
-  else if (/s$/i.test(w)) s = w.slice(0, -1);
-  return [s, ...rest].join(' ');
+  const [w, a, ...rest] = noun.split(' ');
+  const sa = a && ADJ.test(singular1(a)) ? singular1(a) : a;
+  return [singular1(w), ...(a ? [sa] : []), ...rest].join(' ');
 }
 
 // Cómo se mide la porción de un alimento a partir de su texto ("1 taza (160 g)", "100 g", "3 cdas (30 g)").
@@ -156,6 +164,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
     host.querySelector('.seg').onclick = (e) => {
       const b = e.target.closest('button');
       if (!b) return;
+      if (b.dataset.tab !== 'manual') pendingCode = null;
       tab = b.dataset.tab;
       picked = null;
       shell();
@@ -374,7 +383,9 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
     });
     body.querySelector('.pk-recipe')?.addEventListener('click', (e) => {
       e.preventDefault();
-      recipe = { id: food.id, name: food.name, items: food.parts.map((x) => ({ ...x })), keep: true };
+      const mine = food.id && state.foods.some((x) => x.id === food.id);
+      // si se edita desde un ingrediente ya elegido, se conserva su cantidad (ej: 2 porciones)
+      recipe = { id: mine ? food.id : null, name: food.name, items: food.parts.map((x) => ({ ...x })), keep: !!mine, qty: start ? factorOf(food, start.mode, start.amount, start.size) : 1 };
       picked = null;
       start = null;
       tab = 'build';
@@ -440,7 +451,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
           size,
           ...scaled(food, qty),
           g: gramsOf(food, mode, amount, qty),
-          food: { name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0, ...(food.sizes ? { sizes: food.sizes } : {}) },
+          food: { id: food.id, name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0, ...(food.sizes ? { sizes: food.sizes } : {}), ...(food.parts ? { parts: food.parts } : {}) },
         };
         recipe.items = editId ? recipe.items.map((x) => (x.id === editId ? it : x)) : [...recipe.items, it];
         closeSub();
@@ -498,9 +509,10 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
         toast(at >= 0 ? `${food.name} actualizado en tus alimentos` : `${food.name} guardado en tus alimentos ✦`);
       }
       const summary = recipe.items.map((x) => x.name).join(', ');
+      const qty = recipe.qty || 1;
       recipe = { id: null, name: '', items: [], keep: false };
       tab = 'search';
-      onPick({ food, qty: 1, label: summary.length > 90 ? summary.slice(0, 88) + '…' : summary, mode: 'unit', amount: 1 });
+      onPick({ food, qty, label: (qty !== 1 ? `${fracStr(qty)} porciones: ` : '') + (summary.length > 80 ? summary.slice(0, 78) + '…' : summary), mode: 'unit', amount: qty });
     };
     draw();
   }
@@ -519,9 +531,11 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
     const ok = () => body.querySelector('.mn-ok').click();
     body.querySelectorAll('input:not([type=checkbox])').forEach((i) => (i.onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), ok())));
     body.querySelector('.mn-ok').onclick = () => {
-      const kcal = parseInt(body.querySelector('.mn-kcal').value, 10);
+      // "1.200" es mil doscientos (punto de miles); la coma es decimal
+      const miles = (v) => (/^\d{1,3}(\.\d{3})+$/.test(v.trim()) ? v.replace(/\./g, '') : v);
+      const kcal = parseInt(miles(body.querySelector('.mn-kcal').value), 10);
       if (!(kcal >= 0)) return toast('Ingresa las calorías');
-      const g = (c) => Math.round(parseAmount(body.querySelector(c).value) * 10) / 10;
+      const g = (c) => Math.round(parseAmount(miles(body.querySelector(c).value)) * 10) / 10;
       const grams = g('.mn-g');
       // con gramos, después se puede ajustar la cantidad en gramos (ej: tabla "por 100 g" y comí 40 g)
       const unit = grams ? `1 porción (${String(grams).replace('.', ',')} g)` : '1 porción';
@@ -544,7 +558,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, b
 
   shell();
   return {
-    reset: () => ((picked = null), (start = null), (tab = 'search'), shell()),
+    reset: () => ((picked = null), (start = null), (pendingCode = null), (tab = 'search'), shell()),
     edit: (food, mode, amount, size) => ((tab = 'search'), (picked = food), (start = { mode, amount, size }), shell()),
   };
 }

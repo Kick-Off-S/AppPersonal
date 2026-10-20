@@ -115,7 +115,7 @@ export async function exportExpensesCSV() {
   const cell = csvCell;
   const rows = [...state.finance.expenses]
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((e) => [...[e.date, e.cat, e.desc || '', e.fixedId ? 'Fijo' : e.cuota ? `Cuota ${e.cuota[0]}/${e.cuota[1]}` : 'Variable'].map(cell), e.amount].join(';'));
+    .map((e) => [...[e.date, e.cat, e.desc || '', e.fixedId ? 'Fijo' : e.loanId ? 'Cuota de préstamo' : e.cuota ? `Cuota ${e.cuota[0]}/${e.cuota[1]}` : e.savingsId ? 'Pagado con ahorro' : 'Variable'].map(cell), e.amount].join(';'));
   if (!rows.length) return toast('Aún no hay gastos para exportar');
   const text = '﻿' + ['Fecha;Categoría;Detalle;Tipo;Monto', ...rows].join('\r\n');
   try {
