@@ -133,13 +133,24 @@ function recentFoods() {
 // host: elemento donde se dibuja.
 // onPick({ food, qty, label, mode, amount }) se llama al confirmar. qty = multiplicador de la porción base.
 // Devuelve { reset, edit(food, mode, amount) } para volver a la búsqueda o editar una cantidad ya elegida.
-export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null }) {
+// Gramos de un ingrediente según lo elegido (null si el alimento no indica gramos).
+function gramsOf(food, mode, amount, qty) {
+  if (mode === 'g') return amount;
+  const g = portionOf(food).grams;
+  return g ? qty * g : null;
+}
+
+// build: false oculta la pestaña "Armar" (se usa para el buscador de ingredientes dentro de Armar).
+export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null, build = true }) {
   let tab = 'search';
   let picked = null;
   let start = null; // { mode, amount } al editar
+  // preparación en curso en "Armar" (se mantiene al cambiar de pestaña)
+  let recipe = { id: null, name: '', items: [], keep: false };
 
+  const tabs = [['search', 'Buscar'], ...(build ? [['build', 'Armar']] : []), ['manual', 'Manual']];
   const shell = () => {
-    host.innerHTML = `<div class="seg"><button type="button" class="${tab === 'search' ? 'sel' : ''}" data-tab="search">Buscar</button><button type="button" class="${tab === 'manual' ? 'sel' : ''}" data-tab="manual">Manual</button></div><div class="pk-body"></div>`;
+    host.innerHTML = `<div class="seg">${tabs.map(([k, l]) => `<button type="button" class="${tab === k ? 'sel' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div class="pk-body"></div>`;
     host.querySelector('.seg').onclick = (e) => {
       const b = e.target.closest('button');
       if (!b) return;
@@ -149,6 +160,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
     };
     const body = host.querySelector('.pk-body');
     if (tab === 'manual') manual(body);
+    else if (tab === 'build') buildView(body);
     else if (picked) qty(body);
     else search(body);
   };
@@ -221,6 +233,7 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
       <div class="keypad" hidden>${KEYS.map(([k, l]) => `<button type="button" data-k="${k}" class="${k === 'ok' ? 'primary' : ''}">${l}</button>`).join('')}</div>
       <div class="qchips"></div>
       <div class="pk-tot"></div>
+      ${food.parts?.length && build ? `<div class="small muted" style="margin-top:8px">${esc(food.parts.map((x) => x.name).join(', '))} · <a href="#" class="pk-recipe">Editar ingredientes</a></div>` : ''}
       <div class="actions">${custom && !editing ? '<button type="button" class="danger pk-rm">Quitar de mis alimentos</button>' : '<button type="button" class="ghost pk-back">Volver</button>'}
       <button type="button" class="primary pk-ok">${esc(editing ? 'Actualizar' : label)}</button></div>`;
 
@@ -336,6 +349,14 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
       start = null;
       shell();
     });
+    body.querySelector('.pk-recipe')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      recipe = { id: food.id, name: food.name, items: food.parts.map((x) => ({ ...x })), keep: true };
+      picked = null;
+      start = null;
+      tab = 'build';
+      shell();
+    });
     const rm = body.querySelector('.pk-rm');
     if (rm)
       rm.onclick = () => {
@@ -345,6 +366,120 @@ export function foodPicker(host, { onPick, label = 'Agregar', onCancel = null })
         picked = null;
         shell();
       };
+  }
+
+  // Armar: una preparación (sándwich, ensalada, batido…) con varios ingredientes y su total.
+  function buildView(body) {
+    const tot = () =>
+      recipe.items.reduce((a, it) => ({ kcal: a.kcal + it.kcal, p: a.p + it.p, c: a.c + it.c, f: a.f + it.f }), { kcal: 0, p: 0, c: 0, f: 0 });
+    body.innerHTML = `<label class="field">Nombre<input class="bd-name" maxlength="60" value="${esc(recipe.name)}" placeholder="Ej: Sándwich de jamón queso" autocomplete="off"></label>
+      <label class="field">Ingredientes</label>
+      <div class="ing bd-items"></div>
+      <button type="button" class="block bd-add">+ Agregar ingrediente</button>
+      <div class="pk-box bd-sub" hidden></div>
+      <div class="bd-tot"></div>
+      <label class="row" style="margin-top:12px"><input type="checkbox" class="bd-keep" style="width:22px;min-height:22px;margin:0" ${recipe.keep ? 'checked' : ''}> <span>${recipe.id ? 'Actualizar en mis alimentos' : 'Guardar en mis alimentos para repetirlo'}</span></label>
+      <div class="actions">${onCancel ? '<button type="button" class="ghost bd-cancel">Cancelar</button>' : '<button type="button" class="ghost bd-clear">Limpiar</button>'}<button type="button" class="primary bd-ok">${esc(label)}</button></div>`;
+    const $ = (q) => body.querySelector(q);
+    const sub = $('.bd-sub');
+    let editId = null;
+    const draw = () => {
+      $('.bd-items').innerHTML = recipe.items.length
+        ? recipe.items
+            .map(
+              (it) => `<div class="item"><div class="grow" data-e="${it.id}"><div class="t">${esc(it.name)}</div><div class="s">${esc(it.label)}</div></div>
+              <div class="amount small">${num(it.kcal)} kcal</div><button type="button" class="ghost icon sm" data-rm="${it.id}" aria-label="Quitar">✕</button></div>`
+            )
+            .join('')
+        : '<div class="small muted">Ej: 1 pan ciabatta, 2 láminas de queso, 2 fetas de jamón, ½ tomate y 1 cdta de aceite de oliva.</div>';
+      const t = tot();
+      $('.bd-tot').innerHTML = recipe.items.length
+        ? `<div class="macros m4"><div><b>${num(t.kcal)}</b><span>kcal</span></div><div><b>${num(t.p, 1)}</b><span>Proteína g</span></div><div><b>${num(t.c, 1)}</b><span>Carbos g</span></div><div><b>${num(t.f, 1)}</b><span>Grasa g</span></div></div>`
+        : '';
+    };
+    const closeSub = () => {
+      sub.hidden = true;
+      $('.bd-add').hidden = false;
+      editId = null;
+    };
+    const picker = foodPicker(sub, {
+      build: false,
+      label: 'Agregar ingrediente',
+      onCancel: closeSub,
+      onPick({ food, qty, label: lbl, mode, amount, size }) {
+        const it = {
+          id: editId || uid(),
+          name: food.name,
+          label: lbl,
+          qty,
+          mode,
+          amount,
+          size,
+          ...scaled(food, qty),
+          g: gramsOf(food, mode, amount, qty),
+          food: { name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0, ...(food.sizes ? { sizes: food.sizes } : {}) },
+        };
+        recipe.items = editId ? recipe.items.map((x) => (x.id === editId ? it : x)) : [...recipe.items, it];
+        closeSub();
+        picker.reset();
+        draw();
+      },
+    });
+    $('.bd-name').oninput = (e) => (recipe.name = e.target.value);
+    $('.bd-keep').onchange = (e) => (recipe.keep = e.target.checked);
+    $('.bd-add').onclick = () => {
+      editId = null;
+      picker.reset();
+      sub.hidden = false;
+      $('.bd-add').hidden = true;
+      sub.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    $('.bd-items').onclick = (e) => {
+      const rm = e.target.closest('[data-rm]');
+      const ed = e.target.closest('[data-e]');
+      if (rm) (recipe.items = recipe.items.filter((x) => x.id !== rm.dataset.rm)), draw();
+      else if (ed) {
+        const it = recipe.items.find((x) => x.id === ed.dataset.e);
+        editId = it.id;
+        picker.edit(it.food, it.mode, it.amount, it.size);
+        sub.hidden = false;
+        $('.bd-add').hidden = true;
+        sub.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    };
+    $('.bd-cancel')?.addEventListener('click', onCancel);
+    $('.bd-clear')?.addEventListener('click', () => {
+      recipe = { id: null, name: '', items: [], keep: false };
+      shell();
+    });
+    $('.bd-ok').onclick = () => {
+      if (!recipe.items.length) return toast('Agrega al menos un ingrediente');
+      const t = tot();
+      const r1 = (x) => Math.round(x * 10) / 10;
+      const grams = recipe.items.every((x) => x.g) ? Math.round(recipe.items.reduce((a, x) => a + x.g, 0)) : 0;
+      const food = {
+        id: recipe.id || uid(),
+        name: recipe.name.trim() || 'Preparación',
+        unit: grams ? `1 porción (${grams} g)` : '1 porción',
+        kcal: Math.round(t.kcal),
+        p: r1(t.p),
+        c: r1(t.c),
+        f: r1(t.f),
+        parts: recipe.items,
+      };
+      if (recipe.keep) {
+        const at = state.foods.findIndex((x) => x.id === food.id);
+        if (at >= 0) state.foods[at] = food;
+        else state.foods.unshift(food);
+        save();
+        toast(at >= 0 ? `${food.name} actualizado en tus alimentos` : `${food.name} guardado en tus alimentos ✦`);
+      }
+      const summary = recipe.items.map((x) => x.name).join(', ');
+      recipe = { id: null, name: '', items: [], keep: false };
+      tab = 'search';
+      onPick({ food, qty: 1, label: summary.length > 90 ? summary.slice(0, 88) + '…' : summary, mode: 'unit', amount: 1 });
+    };
+    draw();
   }
 
   function manual(body) {

@@ -91,10 +91,14 @@ function fromDiet(days) {
         continue;
       }
       for (const it of m.items) {
-        const key = `${it.name}|${it.mode}|${it.size || ''}`;
-        const cur = acc.get(key) || { it, amount: 0 };
-        cur.amount += it.amount || 0;
-        acc.set(key, cur);
+        // una preparación armada (sándwich, ensalada…) se desarma en sus ingredientes
+        const parts = it.food?.parts?.length ? it.food.parts.map((x) => ({ ...x, amount: (x.amount || 0) * (it.qty || 1) })) : [it];
+        for (const x of parts) {
+          const key = `${x.name}|${x.mode}|${x.size || ''}`;
+          const cur = acc.get(key) || { it: x, amount: 0 };
+          cur.amount += x.amount || 0;
+          acc.set(key, cur);
+        }
       }
     }
   const out = [...acc.values()].map(({ it, amount }) => {

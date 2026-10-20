@@ -166,12 +166,12 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>Sueldo fijo o variable:</b> si cambia cada mes, lo ingresas mes a mes.</li>
-      <li><b>Otros ingresos del mes:</b> bonos, ventas, honorarios… aparte del sueldo (Gastos → Ingresos del mes).</li>
-      <li><b>Préstamos:</b> lo que prestas o te prestan, en cuotas, con calendario para marcar cada pago y cuánto te deben o debes.</li>
-      <li><b>Compras en cuotas:</b> resumen de lo que queda por pagar, valor de la cuota con interés y compras antiguas con cuotas ya pagadas.</li>
-      <li><b>Bebidas:</b> Monster, Red Bull (con tamaños), bebidas, jugos, cafés, cervezas y tragos.</li>
-      <li>De la 3.2: paletas de colores en Ajustes → Apariencia.</li>
+      <li><b>Armar preparaciones:</b> en el buscador, pestaña <b>Armar</b>. Arma tu sándwich, ensalada o batido ingrediente por ingrediente (ej: ciabatta + queso + jamón + tomate + aceite) y ve las calorías y macros exactas.</li>
+      <li>Guárdalo en <b>tus alimentos</b> para repetirlo con un toque, y edita sus ingredientes cuando quieras.</li>
+      <li><b>Más panes:</b> ciabatta, baguette, frica, completo, hamburguesa, brioche, multigrano, sin gluten, masa madre, coliza, dobladita, croissant y más, varios con tamaños.</li>
+      <li><b>Más rellenos y salsas:</b> cheddar, mozzarella, salame, tocino, mechada, churrasco, huevo frito, pesto, aioli…</li>
+      <li>La lista de compras desarma tus preparaciones en sus ingredientes.</li>
+      <li>De la 3.3: sueldo variable, otros ingresos, préstamos, cuotas mejoradas y bebidas.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

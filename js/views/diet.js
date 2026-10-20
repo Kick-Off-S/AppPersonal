@@ -196,7 +196,7 @@ function mealSheet(meal) {
             amount,
             size,
             ...scaled(food, qty),
-            food: { name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0, ...(food.sizes ? { sizes: food.sizes } : {}) },
+            food: { name: food.name, unit: food.unit, kcal: food.kcal, p: food.p || 0, c: food.c || 0, f: food.f || 0, ...(food.sizes ? { sizes: food.sizes } : {}), ...(food.parts ? { parts: food.parts } : {}) },
           };
           if (editId) items = items.map((x) => (x.id === editId ? it : x));
           else items = [...items, it];

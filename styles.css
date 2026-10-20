@@ -371,3 +371,5 @@ html, body, button, a, input, select, textarea, label, .item { touch-action: man
 .keypad button.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); font-size: 15px; }
 /* préstamos: espacio del check cuando no hay cuota este mes, para que las filas queden alineadas */
 .check-sp { width: 30px; flex: none; }
+.macros.m4 { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.macros.m4 b { font-size: 16px; }
