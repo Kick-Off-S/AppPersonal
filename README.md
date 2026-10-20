@@ -30,6 +30,11 @@ Los datos personales nunca se suben: viven en el teléfono de cada uno.
 2. Si hay novedades que mostrar, subir `APP_VERSION` en `js/store.js` y editar la lista en `whatsNew()` de `js/app.js`.
 3. Al abrir la app, los teléfonos descargan la versión nueva en segundo plano y muestran **"Hay una versión nueva · Actualizar"**.
 
+## Novedades 3.3
+Sueldo fijo o variable, otros ingresos del mes, préstamos (dados y recibidos) con calendario de cuotas,
+resumen de compras en cuotas (valor cuota con interés y cuotas ya pagadas) y bebidas/energéticas/tragos.
+Préstamos en `js/views/loans.js`.
+
 ## Novedades 3.0
 Módulos nuevos (se activan en Ajustes): **Ejercicio** (rutinas por día que se repiten, marcar ejercicios hechos, peso usado y
 nuevas marcas, actividad extra con calorías), **Hábitos** (checks diarios, rachas y calendario) y **Lista de compras**

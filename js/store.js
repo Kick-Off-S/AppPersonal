@@ -7,7 +7,7 @@ const KEY = 'state';
 const LS_KEY = 'gestion-personal:state';
 export const VERSION = 1;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '3.2';
+export const APP_VERSION = '3.3';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -23,7 +23,12 @@ export const defaults = () => ({
   // fixed: gastos fijos mensuales { id, name, amount, cat, day, from: 'YYYY-MM' }
   // expenses en cuotas comparten groupId y llevan cuota: [i, n]
   // budgets['Categoría'] = tope mensual de gasto
-  finance: { income: {}, expenses: [], fixed: [], budgets: {} }, // income['YYYY-MM'] = sueldo líquido
+  // salaryMode: 'fixed' (el sueldo se repite cada mes) | 'variable' (se ingresa cada mes)
+  // extras: otros ingresos del mes { id, date, amount, note }
+  // loans: préstamos { id, dir: 'lent' (presté) | 'borrowed' (me prestaron), person, amount, date, counted,
+  //        n, cuota, start: 'YYYY-MM', prepaid, received: { 'YYYY-MM': true }, note }
+  //        las cuotas pagadas de lo que me prestaron se registran como gastos con loanId y cuotaYm
+  finance: { income: {}, expenses: [], fixed: [], budgets: {}, salaryMode: 'fixed', extras: [], loans: [] }, // income['YYYY-MM'] = sueldo líquido
   // Cuentas de ahorro: { id, name, kind, rate? (% anual) }
   savingsAccounts: [{ id: 'general', name: 'Ahorro general', kind: 'cuenta' }],
   // type: 'in' aporte | 'out' retiro | 'int' interés o rentabilidad (amount con signo: + ganancia, − pérdida)
@@ -52,7 +57,7 @@ export function withDefaults(data) {
   out.diet.done = (d.diet && d.diet.done) || {};
   out.finance = { ...base.finance, ...(d.finance || {}) };
   for (const k of ['foods', 'savings', 'weight']) if (!Array.isArray(out[k])) out[k] = [];
-  for (const k of ['expenses', 'fixed']) if (!Array.isArray(out.finance[k])) out.finance[k] = [];
+  for (const k of ['expenses', 'fixed', 'extras', 'loans']) if (!Array.isArray(out.finance[k])) out.finance[k] = [];
   for (const k of ['log', 'water']) if (!out[k] || typeof out[k] !== 'object') out[k] = {};
   if (!out.finance.budgets || typeof out.finance.budgets !== 'object') out.finance.budgets = {};
   // v3: ejercicio, hábitos y compras

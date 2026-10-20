@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v15';
+const VERSION = 'gp-v16';
 const SHELL = [
   './',
   'index.html',
@@ -30,6 +30,7 @@ const SHELL = [
   'js/views/exercise.js',
   'js/views/habits.js',
   'js/views/shopping.js',
+  'js/views/loans.js',
 ];
 
 self.addEventListener('install', (e) => {

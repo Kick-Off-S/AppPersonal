@@ -2,7 +2,7 @@ import { load, state, save, APP_VERSION } from './store.js';
 import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
 import { MODULES, isOn } from './modules.js';
 import { esc, openSheet, toast } from './util.js';
-import { applyTheme, setTheme, PALETTES } from './theme.js';
+import { applyTheme } from './theme.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
 import * as finance from './views/finance.js';
@@ -165,18 +165,15 @@ function whatsNew() {
   if (!returning) return;
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
-    <p style="margin:6px 0 0"><b>Elige tus colores:</b> en <b>Ajustes → Apariencia</b> hay 10 paletas y modo claro, oscuro o automático. Toca una para probarla:</p>
-    <div class="swatches" id="newpal">${PALETTES.map(
-      (p) => `<button type="button" class="swatch ${document.documentElement.dataset.palette === p.id ? 'sel' : ''}" data-p="${p.id}" style="--sw:${p.light};--swd:${p.dark}"><i></i>${p.name}</button>`
-    ).join('')}</div>
-    <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`,
-    (sheet) =>
-      sheet.querySelector('#newpal')?.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-p]');
-        if (!b) return;
-        setTheme({ palette: b.dataset.p });
-        sheet.querySelectorAll('#newpal .swatch').forEach((x) => x.classList.toggle('sel', x === b));
-      })
+    <ul class="news">
+      <li><b>Sueldo fijo o variable:</b> si cambia cada mes, lo ingresas mes a mes.</li>
+      <li><b>Otros ingresos del mes:</b> bonos, ventas, honorarios… aparte del sueldo (Gastos → Ingresos del mes).</li>
+      <li><b>Préstamos:</b> lo que prestas o te prestan, en cuotas, con calendario para marcar cada pago y cuánto te deben o debes.</li>
+      <li><b>Compras en cuotas:</b> resumen de lo que queda por pagar, valor de la cuota con interés y compras antiguas con cuotas ya pagadas.</li>
+      <li><b>Bebidas:</b> Monster, Red Bull (con tamaños), bebidas, jugos, cafés, cervezas y tragos.</li>
+      <li>De la 3.2: paletas de colores en Ajustes → Apariencia.</li>
+    </ul>
+    <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );
 }
 

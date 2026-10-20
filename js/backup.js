@@ -7,6 +7,8 @@ export const hasData = () =>
     state.savings.length ||
     state.weight.length ||
     state.finance.expenses.length ||
+    state.finance.extras.length ||
+    state.finance.loans.length ||
     Object.keys(state.log).length ||
     Object.values(state.diet.plan).some((d) => d.length) ||
     state.exercise.routines.length ||

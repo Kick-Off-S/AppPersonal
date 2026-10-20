@@ -1,6 +1,7 @@
 import { state, save } from '../store.js';
 import { barChart } from '../charts.js';
 import { exportExpensesCSV } from '../backup.js';
+import { loanMonth, loansCard, loanSheet, loanDetail, toggleCuota, loanById } from './loans.js';
 import { esc, uid, money, num, compact, parseMoney, openSheet, toast, todayStr, monthKey, addMonths, monthLabel, monthShort, shortDate, vibrate } from '../util.js';
 
 const DEFAULT_CATS = ['Arriendo / Vivienda', 'Supermercado', 'Comida fuera', 'Transporte', 'Cuentas básicas', 'Salud', 'Educación', 'Ocio', 'Ropa', 'Deudas / Créditos', 'Otros'];
@@ -13,20 +14,47 @@ const movedOf = (m) => state.savings.filter((s) => s.type === 'in' && s.ym === m
 const fixedFor = (m) => state.finance.fixed.filter((f) => f.from <= m).sort((a, b) => a.day - b.day);
 const paidOf = (f, m) => state.finance.expenses.find((e) => e.fixedId === f.id && monthKey(e.date) === m);
 
-// Si el mes no tiene sueldo propio, usa el del último mes anterior que sí lo tenga.
+const variable = () => state.finance.salaryMode === 'variable';
+const prevSalary = (m) => {
+  const prev = Object.keys(state.finance.income).filter((k) => k < m).sort().pop();
+  return prev ? state.finance.income[prev] : 0;
+};
+// Sueldo del mes. Fijo: si el mes no tiene uno propio, usa el del último mes que sí lo tenga.
+// Variable: solo cuenta el ingresado para ese mes.
 function incomeOf(m) {
   const own = state.finance.income[m];
   if (own !== undefined) return { value: own, inherited: false };
-  const prev = Object.keys(state.finance.income).filter((k) => k < m).sort().pop();
-  return prev ? { value: state.finance.income[prev], inherited: true } : { value: 0, inherited: false };
+  if (variable()) return { value: 0, inherited: false };
+  const prev = prevSalary(m);
+  return prev ? { value: prev, inherited: true } : { value: 0, inherited: false };
 }
+const extrasOf = (m) => state.finance.extras.filter((x) => monthKey(x.date) === m).sort((a, b) => a.date.localeCompare(b.date));
 
 function summary(m) {
-  const { value: income, inherited } = incomeOf(m);
+  const { value: salary, inherited } = incomeOf(m);
+  const extras = extrasOf(m).reduce((a, x) => a + x.amount, 0);
+  const lm = loanMonth(m);
+  const income = salary + extras + lm.borrowedIn + lm.repaidIn;
   const spent = expensesOf(m).reduce((a, e) => a + e.amount, 0);
   const moved = movedOf(m);
-  const pending = fixedFor(m).filter((f) => !paidOf(f, m)).reduce((a, f) => a + f.amount, 0);
-  return { income, inherited, spent, moved, pending, avail: income - spent - moved - pending };
+  const pending = fixedFor(m).filter((f) => !paidOf(f, m)).reduce((a, f) => a + f.amount, 0) + lm.duePending;
+  const lent = lm.lentOut;
+  return { salary, inherited, extras, lm, income, spent, moved, pending, lent, avail: income - spent - moved - pending - lent };
+}
+
+// Compras en cuotas con cuota este mes o cuotas pendientes después.
+function installmentGroups(m) {
+  const groups = {};
+  for (const e of state.finance.expenses) if (e.groupId) (groups[e.groupId] ||= []).push(e);
+  return Object.values(groups)
+    .map((list) => {
+      list.sort((a, b) => a.date.localeCompare(b.date));
+      const n = list[0].cuota[1];
+      const cur = list.find((e) => monthKey(e.date) === m);
+      const future = list.filter((e) => monthKey(e.date) > m);
+      return { first: list[0], n, cur, left: future.reduce((a, e) => a + e.amount, 0), leftN: future.length, end: monthKey(list[list.length - 1].date) };
+    })
+    .filter((g) => (g.cur || g.leftN) && monthKey(g.first.date) <= m);
 }
 
 const allCats = () => [...new Set([...DEFAULT_CATS, ...state.finance.expenses.map((e) => e.cat), ...state.finance.fixed.map((f) => f.cat)])];
@@ -59,7 +87,10 @@ export function mount(el) {
 
 function render() {
   const list = expensesOf(ym).sort((a, b) => b.date.localeCompare(a.date));
-  const { income, inherited, spent, moved, pending, avail } = summary(ym);
+  const { salary, inherited, extras, lm, income, spent, moved, pending, lent, avail } = summary(ym);
+  const extraList = extrasOf(ym);
+  const groups = installmentGroups(ym);
+  const missingSalary = variable() && state.finance.income[ym] === undefined;
   const fixed = fixedFor(ym);
 
   const byCat = {};
@@ -79,15 +110,29 @@ function render() {
     <div class="card">
       <div class="small muted">Disponible este mes</div>
       <div class="big ${avail < 0 ? 'neg' : ''}">${money(avail)}</div>
-      ${pending ? `<div class="small muted">Ya descuenta ${money(pending)} de gastos fijos por pagar</div>` : ''}
-      <div class="bar ${spent + moved + pending > income ? 'over' : ''}" style="margin:12px 0 4px"><i style="width:${income ? Math.min(100, ((spent + moved + pending) / income) * 100) : 0}%"></i></div>
-      <div class="item" style="border:0;padding-bottom:0"><div class="grow"><div class="t">Sueldo líquido</div>
-        <div class="s">${inherited ? 'Tomado del mes anterior' : income ? 'Ingresado' : 'Aún no lo ingresas'}</div></div>
-        <div class="amount">${money(income)}</div><button class="sm" data-act="income">${income ? 'Editar' : 'Ingresar'}</button></div>
+      ${pending ? `<div class="small muted">Ya descuenta ${money(pending)} por pagar este mes</div>` : ''}
+      <div class="bar ${spent + moved + pending + lent > income ? 'over' : ''}" style="margin:12px 0 4px"><i style="width:${income ? Math.min(100, ((spent + moved + pending + lent) / income) * 100) : 0}%"></i></div>
+      ${missingSalary ? `<div class="banner warn small" style="margin:10px 0 0">Tu sueldo es variable: ingresa el de ${monthLabel(ym)}. <a href="#" data-act="income">Ingresar sueldo</a></div>` : ''}
+      <div class="item" style="border:0;padding-bottom:0"><div class="grow t">Ingresos</div><div class="amount pos">${money(income)}</div></div>
       <div class="item"><div class="grow t">Gastado</div><div class="amount">${money(spent)}</div></div>
-      <div class="item"><div class="grow t">Fijos por pagar</div><div class="amount">${money(pending)}</div></div>
+      <div class="item"><div class="grow t">Por pagar (fijos y cuotas)</div><div class="amount">${money(pending)}</div></div>
+      ${lent ? `<div class="item"><div class="grow t">Prestado</div><div class="amount">${money(lent)}</div></div>` : ''}
       <div class="item"><div class="grow t">Enviado a ahorro</div><div class="amount">${money(moved)}</div></div>
       ${avail > 0 && income ? '<button class="block" style="margin-top:6px" data-act="save">Enviar sobrante a ahorro</button>' : ''}
+    </div>
+
+    <div class="card"><div class="row between"><h2 style="margin:0">Ingresos del mes</h2><button class="sm" data-act="extra-new">+ Ingreso</button></div>
+      <div class="item" data-act="income" style="border:0"><div class="grow"><div class="t">Sueldo líquido</div>
+        <div class="s">${variable() ? 'Variable' : 'Fijo'} · ${inherited ? 'el mismo del mes anterior' : salary ? 'ingresado para este mes' : 'aún no lo ingresas'}</div></div>
+        <div class="amount">${money(salary)}</div><span class="muted">✎</span></div>
+      ${extraList
+        .map(
+          (x) => `<div class="item" data-act="extra-edit" data-id="${x.id}"><div class="grow"><div class="t">${esc(x.note || 'Otro ingreso')}</div><div class="s">${shortDate(x.date)} · solo este mes</div></div>
+          <div class="amount pos">+${money(x.amount)}</div></div>`
+        )
+        .join('')}
+      ${lm.incomes.map((r) => `<div class="item"><div class="grow"><div class="t">${esc(r.label)}</div><div class="s">Préstamo</div></div><div class="amount pos">+${money(r.amount)}</div></div>`).join('')}
+      ${extras || lm.incomes.length ? `<div class="row between" style="margin-top:8px"><span class="muted small">Total</span><b>${money(income)}</b></div>` : '<div class="small muted">Bonos, ventas, honorarios, devoluciones… todo lo que entra solo este mes, aparte del sueldo.</div>'}
     </div>
 
     <button class="primary block" data-act="add">+ Agregar gasto</button>
@@ -109,19 +154,38 @@ function render() {
       }
     </div>
 
+    ${loansCard(ym)}
+
+    ${
+      groups.length
+        ? `<div class="card"><h2>Compras en cuotas</h2>
+          ${groups
+            .map((g) => {
+              const label = g.first.desc || g.first.cat;
+              const i = g.cur ? g.cur.cuota[0] : g.n - g.leftN;
+              return `<div class="item" data-act="edit" data-id="${(g.cur || g.first).id}"><div class="grow"><div class="t">${esc(label)}</div>
+                <div class="s">${g.cur ? `Cuota ${i}/${g.n} este mes` : `${g.leftN} cuotas por venir`} · ${g.leftN ? `quedan ${money(g.left)} hasta ${monthShort(g.end)} ${g.end.slice(0, 4)}` : 'última cuota'}</div>
+                <div class="bar" style="margin-top:6px"><i style="width:${(i / g.n) * 100}%"></i></div></div>
+                <div class="amount">${g.cur ? money(g.cur.amount) : ''}</div></div>`;
+            })
+            .join('')}
+          <div class="row between small" style="margin-top:8px"><span class="muted">Deuda en cuotas (meses siguientes)</span><b>${money(groups.reduce((a, g) => a + g.left, 0))}</b></div></div>`
+        : ''
+    }
+
     ${
       hasHistory
         ? `<div class="card"><h2>Últimos 6 meses</h2>
           ${barChart({
             labels: months.map(monthShort),
             values: months.map((m) => expensesOf(m).reduce((a, e) => a + e.amount, 0) || null),
-            marks: months.map((m) => incomeOf(m).value || null),
+            marks: months.map((m) => summary(m).income || null),
             fmt: (v) => '$' + compact(v),
-            titles: months.map((m) => `${monthLabel(m)}: gastado ${money(expensesOf(m).reduce((a, e) => a + e.amount, 0))} · sueldo ${money(incomeOf(m).value)}`),
-            label: 'Gastado por mes comparado con el sueldo',
+            titles: months.map((m) => `${monthLabel(m)}: gastado ${money(expensesOf(m).reduce((a, e) => a + e.amount, 0))} · ingresos ${money(summary(m).income)}`),
+            label: 'Gastado por mes comparado con los ingresos',
             h: 170,
           })}
-          <div class="legend"><span><i class="sw bar"></i>Gastado</span><span><i class="sw mark"></i>Sueldo</span></div></div>`
+          <div class="legend"><span><i class="sw bar"></i>Gastado</span><span><i class="sw mark"></i>Ingresos</span></div></div>`
         : ''
     }
 
@@ -140,7 +204,7 @@ function render() {
                 return `<div class="dist"><div class="row between"><span>${esc(c)}</span><span><b>${money(v)}</b> <span class="muted small">${num((v / base) * 100, 1)}%</span></span></div>
                 <div class="bar"><i style="width:${Math.min(100, (v / base) * 100)}%"></i></div></div>`;
               })
-              .join('') + `<div class="small muted">Las categorías con tope muestran cuánto llevas de él; el resto, el porcentaje sobre ${income ? 'tu sueldo líquido' : 'el total gastado'}.</div>`
+              .join('') + `<div class="small muted">Las categorías con tope muestran cuánto llevas de él; el resto, el porcentaje sobre ${income ? 'tus ingresos del mes' : 'el total gastado'}.</div>`
           : '<div class="small muted" style="margin-top:8px">Registra gastos para ver en qué se va tu sueldo. Con <b>Topes</b> defines cuánto quieres gastar como máximo por categoría.</div>'
       }</div>
 
@@ -148,7 +212,7 @@ function render() {
       list.length
         ? list
             .map(
-              (e) => `<div class="item" data-act="edit" data-id="${e.id}"><div class="grow"><div class="t">${esc(e.desc || e.cat)}${e.fixedId ? ' <span class="muted small">· fijo</span>' : ''}</div>
+              (e) => `<div class="item" data-act="edit" data-id="${e.id}"><div class="grow"><div class="t">${esc(e.desc || e.cat)}${e.fixedId ? ' <span class="muted small">· fijo</span>' : ''}${e.loanId ? ' <span class="muted small">· préstamo</span>' : ''}</div>
                 <div class="s">${e.desc ? `${esc(e.cat)} · ` : ''}${shortDate(e.date)}${e.cuota ? ` · cuota ${e.cuota[0]}/${e.cuota[1]}` : ''}</div></div><div class="amount">${money(e.amount)}</div></div>`
             )
             .join('')
@@ -164,10 +228,20 @@ function onClick(e) {
   if (act === 'prev') ym = addMonths(ym, -1);
   else if (act === 'next') ym = addMonths(ym, 1);
   else if (act === 'now') ym = monthKey(todayStr());
-  else if (act === 'income') return incomeSheet();
+  else if (act === 'income') return e.preventDefault(), incomeSheet();
+  else if (act === 'extra-new') return extraSheet();
+  else if (act === 'extra-edit') return extraSheet(state.finance.extras.find((x) => x.id === id));
+  else if (act === 'loan-new') return loanSheet(null, render);
+  else if (act === 'loan-open') return loanDetail(loanById(id), render);
+  else if (act === 'loan-tick') toggleCuota(loanById(id), ym);
   else if (act === 'save') return toSavingsSheet();
   else if (act === 'add') return expenseSheet();
-  else if (act === 'edit') return expenseSheet(state.finance.expenses.find((x) => x.id === id));
+  else if (act === 'edit') {
+    const ex = state.finance.expenses.find((x) => x.id === id);
+    // las cuotas de préstamos se manejan desde el préstamo
+    if (ex?.loanId && loanById(ex.loanId)) return loanDetail(loanById(ex.loanId), render);
+    return expenseSheet(ex);
+  }
   else if (act === 'addfixed') return fixedSheet();
   else if (act === 'editfixed') return fixedSheet(state.finance.fixed.find((x) => x.id === id));
   else if (act === 'paid') togglePaid(state.finance.fixed.find((x) => x.id === id));
@@ -191,18 +265,81 @@ function togglePaid(f) {
 }
 
 function incomeSheet() {
+  let mode = state.finance.salaryMode || 'fixed';
+  const prev = prevSalary(ym);
   openSheet(
-    `<h3>Sueldo líquido de ${monthLabel(ym)}</h3><p class="muted small">Lo que efectivamente recibes, después de descuentos.</p>
-    <form id="f"><label class="field">Monto<input name="v" inputmode="numeric" required value="${incomeOf(ym).value || ''}" placeholder="Ej: 1200000"></label>
+    `<h3>Sueldo líquido de ${monthLabel(ym)}</h3><p class="muted small" style="margin-top:0">Lo que efectivamente recibes, después de descuentos.</p>
+    <div class="seg" id="mode"><button type="button" data-m="fixed">Fijo</button><button type="button" data-m="variable">Variable</button></div>
+    <p class="small muted" id="mode-h" style="margin:6px 0 0"></p>
+    <form id="f"><label class="field">Monto de ${monthLabel(ym).toLowerCase()}<input name="v" inputmode="numeric" value="${state.finance.income[ym] ?? (mode === 'fixed' ? incomeOf(ym).value || '' : '')}" placeholder="Ej: 1200000"></label>
+    ${prev ? `<button type="button" class="ghost sm" id="prev" style="padding:0;margin-top:6px">Usar el del mes anterior (${money(prev)})</button>` : ''}
     <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
-    (sheet, close) =>
-      sheet.querySelector('#f').addEventListener('submit', (ev) => {
+    (sheet, close) => {
+      const $ = (q) => sheet.querySelector(q);
+      const draw = () => {
+        sheet.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('sel', b.dataset.m === mode));
+        $('#mode-h').textContent =
+          mode === 'fixed'
+            ? 'Se repite cada mes hasta que lo cambies.'
+            : 'Cambia cada mes (comisiones, turnos, honorarios): lo ingresas mes a mes.';
+      };
+      $('#mode').onclick = (e) => {
+        const b = e.target.closest('button');
+        if (b) (mode = b.dataset.m), draw();
+      };
+      $('#prev')?.addEventListener('click', () => ($('#f').elements.v.value = prev));
+      draw();
+      $('#f').addEventListener('submit', (ev) => {
         ev.preventDefault();
-        state.finance.income[ym] = parseMoney(new FormData(ev.target).get('v'));
+        state.finance.salaryMode = mode;
+        const raw = new FormData(ev.target).get('v');
+        if (String(raw).trim() === '') delete state.finance.income[ym];
+        else state.finance.income[ym] = parseMoney(raw);
         save();
         close();
         render();
-      })
+      });
+    }
+  );
+}
+
+// Otro ingreso, solo de este mes (bono, venta, honorarios…).
+function extraSheet(x) {
+  const editing = !!x;
+  const defDate = ym === monthKey(todayStr()) ? todayStr() : `${ym}-01`;
+  const notes = [...new Set(['Bono', 'Aguinaldo', 'Honorarios / freelance', 'Venta', 'Devolución de impuestos', 'Arriendo recibido', 'Regalo', ...state.finance.extras.map((e) => e.note).filter(Boolean)])];
+  openSheet(
+    `<h3>${editing ? 'Editar ingreso' : 'Otro ingreso del mes'}</h3>
+    <p class="muted small" style="margin-top:0">Algo que entra solo este mes, aparte del sueldo.</p>
+    <form id="f">
+      <label class="field">Monto<input name="amount" inputmode="numeric" required value="${x?.amount ?? ''}" placeholder="Ej: 150000"></label>
+      <label class="field">Concepto<input name="note" list="inotes" maxlength="60" value="${esc(x?.note)}" placeholder="Ej: Bono, venta de bicicleta" autocomplete="off"></label>
+      <datalist id="inotes">${notes.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
+      <label class="field">Fecha<input name="date" type="date" required value="${x?.date || defDate}"></label>
+      <div class="actions">${editing ? '<button type="button" class="danger" id="del">Eliminar</button>' : '<button type="button" class="ghost" data-close>Cancelar</button>'}<button class="primary">Guardar</button></div>
+    </form>`,
+    (sheet, close) => {
+      sheet.querySelector('#f').addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        const f = new FormData(ev.target);
+        const data = { amount: parseMoney(f.get('amount')), note: f.get('note').trim(), date: f.get('date') };
+        if (!data.amount) return toast('Ingresa el monto');
+        if (editing) Object.assign(x, data);
+        else state.finance.extras.push({ id: uid(), ...data });
+        save();
+        close();
+        toast('Ingreso guardado');
+        ym = monthKey(data.date);
+        render();
+      });
+      sheet.querySelector('#del')?.addEventListener('click', () => {
+        if (!confirm('¿Eliminar este ingreso?')) return;
+        state.finance.extras = state.finance.extras.filter((e) => e !== x);
+        save();
+        close();
+        render();
+      });
+    }
   );
 }
 
@@ -259,7 +396,11 @@ function expenseSheet(exp) {
         editing
           ? ''
           : `<label class="cuotas"><input type="checkbox" name="split"> <span>Compra en cuotas</span></label>
-        <label class="field" id="n-wrap" hidden>Número de cuotas<input name="n" inputmode="numeric" maxlength="2" placeholder="Ej: 6"></label>
+        <div id="n-wrap" hidden>
+          <div class="two"><label class="field">N° de cuotas<input name="n" inputmode="numeric" maxlength="2" placeholder="Ej: 6"></label>
+            <label class="field">Valor cuota (opcional)<input name="cv" inputmode="numeric" placeholder="Si tiene interés"></label></div>
+          <label class="field">Cuotas ya pagadas (opcional)<input name="paid" inputmode="numeric" maxlength="2" placeholder="Ej: 2, si es una compra antigua"></label>
+        </div>
         <div class="small muted" id="n-hint" hidden style="margin-top:6px"></div>`
       }
       <div class="actions">${editing ? `<button type="button" class="danger" id="del">${exp.groupId ? 'Eliminar compra' : 'Eliminar'}</button>` : '<button type="button" class="ghost" data-close>Cancelar</button>'}
@@ -268,18 +409,27 @@ function expenseSheet(exp) {
     (sheet, close) => {
       const form = sheet.querySelector('#f');
       const split = form.elements.split;
-      const cuotas = () => (split?.checked ? Math.min(48, Math.max(0, parseInt(form.elements.n.value, 10) || 0)) : 0);
-      const hint = () => {
+      const cuotas = () => (split?.checked ? Math.min(60, Math.max(0, parseInt(form.elements.n.value, 10) || 0)) : 0);
+      const plan = () => {
         const n = cuotas();
         const total = parseMoney(form.elements.amount.value);
+        const cv = parseMoney(form.elements.cv?.value) || (n ? Math.floor(total / n) : 0);
+        const paid = Math.min(Math.max(0, n - 1), parseInt(form.elements.paid?.value, 10) || 0);
+        return { n, total, cv, paid, custom: !!parseMoney(form.elements.cv?.value) };
+      };
+      const hint = () => {
+        const { n, total, cv, paid } = plan();
         sheet.querySelector('#n-hint').hidden = !(n >= 2 && total);
-        sheet.querySelector('#n-hint').textContent = `${n} cuotas de ${money(Math.floor(total / n))} desde ${monthLabel(monthKey(form.elements.date.value || defDate))}`;
+        const extra = cv * n - total;
+        sheet.querySelector('#n-hint').textContent = `${n} cuotas de ${money(cv)} · total ${money(cv * n)}${extra > 0 ? ` (interés ${money(extra)})` : ''}${
+          paid ? ` · se anotan de la cuota ${paid + 1} a la ${n}` : ''
+        } desde ${monthLabel(monthKey(form.elements.date.value || defDate))}`;
       };
       if (split) {
         split.onchange = () => {
           sheet.querySelector('#n-wrap').hidden = !split.checked;
           sheet.querySelector('#amt-l').textContent = split.checked ? 'Monto total de la compra' : 'Monto';
-          sheet.querySelector('#date-l').textContent = split.checked ? 'Fecha de la primera cuota' : 'Fecha';
+          sheet.querySelector('#date-l').textContent = split.checked ? 'Fecha de la primera cuota a anotar' : 'Fecha';
           if (split.checked) form.elements.n.focus();
           hint();
         };
@@ -291,19 +441,20 @@ function expenseSheet(exp) {
         const data = { amount: parseMoney(f.get('amount')), cat: f.get('cat').trim(), desc: f.get('desc').trim(), date: f.get('date') };
         if (!data.amount || !data.cat) return toast('Falta el monto o la categoría');
         const n = cuotas();
-        if (split?.checked && n < 2) return toast('Indica de 2 a 48 cuotas');
+        if (split?.checked && n < 2) return toast('Indica de 2 a 60 cuotas');
+        const pl = plan();
         if (editing) Object.assign(exp, data);
         else if (n >= 2) {
           const groupId = uid();
-          const per = Math.floor(data.amount / n);
-          for (let i = 0; i < n; i++) {
-            const amount = i === 0 ? data.amount - per * (n - 1) : per;
-            state.finance.expenses.push({ id: uid(), ...data, amount, date: shiftDate(data.date, i), groupId, cuota: [i + 1, n] });
+          // sin valor de cuota: la diferencia por redondeo va en la primera cuota
+          for (let i = pl.paid; i < n; i++) {
+            const amount = !pl.custom && i === 0 ? data.amount - pl.cv * (n - 1) : pl.cv;
+            state.finance.expenses.push({ id: uid(), ...data, amount, date: shiftDate(data.date, i - pl.paid), groupId, cuota: [i + 1, n], total: pl.cv * n });
           }
         } else state.finance.expenses.push({ id: uid(), ...data });
         save();
         close();
-        if (n >= 2) toast(`Compra en ${n} cuotas de ${money(Math.floor(data.amount / n))}`);
+        if (n >= 2) toast(`Compra en ${n} cuotas de ${money(pl.cv)}`);
         else budgetAlert(data.cat, monthKey(data.date));
         // Si el gasto cae en otro mes, nos movemos a ese mes para que se vea.
         ym = monthKey(data.date);
