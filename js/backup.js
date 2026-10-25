@@ -14,7 +14,8 @@ export const hasData = () =>
     Object.values(state.diet.plan).some((d) => d.length) ||
     state.exercise.routines.length ||
     state.habits.list.length ||
-    state.shopping.items.length
+    state.shopping.items.length ||
+    state.meds.list.length
   );
 
 // Días desde el último respaldo (null = nunca).

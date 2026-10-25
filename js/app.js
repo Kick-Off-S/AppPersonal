@@ -13,6 +13,7 @@ import * as settings from './views/settings.js';
 import * as exercise from './views/exercise.js';
 import * as habits from './views/habits.js';
 import * as shopping from './views/shopping.js';
+import * as meds from './views/meds.js';
 
 const ICONS = {
   today: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M9 15l2 2 4-4"/>',
@@ -23,6 +24,7 @@ const ICONS = {
   settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   exercise: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
   habits: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>',
+  meds: '<rect x="3.5" y="8.5" width="17" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.2 9.2l5.6 5.6"/>',
   shopping: '<path d="M3 4h2.2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
   more: '<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>',
 };
@@ -30,11 +32,12 @@ const ICONS = {
 // module: a qué módulo pertenece cada pestaña (sin module = siempre visible; lista = visible si alguno está activo).
 // El orden define la barra de abajo: caben 5; si hay más, las 4 primeras + "Más".
 const TABS = [
-  { id: 'today', label: 'Hoy', view: today, module: ['health', 'exercise', 'habits'] },
+  { id: 'today', label: 'Hoy', view: today, module: ['health', 'exercise', 'habits', 'meds'] },
   { id: 'diet', label: 'Dieta', view: diet, module: 'health' },
   { id: 'exercise', label: 'Ejercicio', view: exercise, module: 'exercise' },
   { id: 'finance', label: 'Gastos', view: finance, module: 'finance', title: 'Gastos y sueldo' },
   { id: 'habits', label: 'Hábitos', view: habits, module: 'habits' },
+  { id: 'meds', label: 'Remedios', view: meds, module: 'meds', title: 'Medicamentos' },
   { id: 'savings', label: 'Ahorro', view: savings, module: 'finance' },
   { id: 'shopping', label: 'Compras', view: shopping, module: 'shopping', title: 'Lista de compras' },
   { id: 'progress', label: 'Progreso', view: progress, module: 'health' },
@@ -214,11 +217,9 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li>Lista de compras: un mismo producto en distintos tamaños queda en una sola fila ("2 unidades M + 1 unidad L").</li>
-      <li>Préstamos y cuotas cuadran al peso: la última cuota ajusta el redondeo.</li>
-      <li>Editar un gasto pagado con ahorro actualiza también el retiro.</li>
-      <li>Mejores textos de cantidades ("2 scoops", "2 vasos medianos"), "1.200" en Manual se lee como mil doscientos, y bebidas en "cc" o "Lt" se reconocen como líquidos al escanear.</li>
-      <li>Editar los ingredientes de una preparación guardada ya no la duplica.</li>
+      <li><b>💊 Medicamentos (nuevo módulo):</b> anota tus medicamentos con sus horarios, días y duración; marca cada toma como tomada u omitida, mira tu cumplimiento de 7 días y recibe aviso cuando quede poco stock. Las tomas del día aparecen en <b>Hoy</b>.</li>
+      <li>Está en <b>Más → Remedios</b>. Si no lo necesitas, apágalo en Ajustes → Módulos.</li>
+      <li>Es un recordatorio personal: no reemplaza las indicaciones de tu médico.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

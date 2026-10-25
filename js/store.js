@@ -8,12 +8,12 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.3';
+export const APP_VERSION = '4.4';
 
 export const defaults = () => ({
   app: 'gestion-personal',
   v: VERSION,
-  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '', setupDone: false, theme: { palette: 'teal', mode: 'auto' }, modules: { health: true, finance: true, exercise: true, habits: true, shopping: true } },
+  settings: { name: '', kcalGoal: 2000, waterGoal: 2000, goalKg: 0, lastBackup: null, backupSnooze: '', seenVersion: '', setupDone: false, theme: { palette: 'teal', mode: 'auto' }, modules: { health: true, finance: true, exercise: true, habits: true, shopping: true, meds: true } },
   // plan[0..6] = comidas de lunes a domingo: { id, name, time, desc, kcal, p?, c?, f? }
   // done['YYYY-MM-DD'] = { [mealId]: true } -> las comidas cumplidas cuentan para las calorías del día
   // counts[fecha] = comidas que tenía el plan ese día (para el % cumplido y la racha de días pasados)
@@ -45,6 +45,10 @@ export const defaults = () => ({
   habits: { list: [], done: {} },
   // Lista de compras: { id, name, qty, done }
   shopping: { items: [] },
+  // Medicamentos: list { id, name, dose, qty (por toma), unit, times ['08:00'], days [0..6] | null (todos),
+  // start 'YYYY-MM-DD', days_n (duración en días, 0 = permanente), stock, lowAt, note }
+  // log['YYYY-MM-DD'][medId]['08:00'] = 'taken' | 'skipped'
+  meds: { list: [], log: {} },
 });
 
 // ---------- limpieza de datos ----------
@@ -205,6 +209,15 @@ function normalize(o) {
   o.habits.list = objs(o.habits.list).map((h) => ((h.days = dayList(h.days) || [0, 1, 2, 3, 4, 5, 6]), h));
   if (!isObj(o.habits.done)) o.habits.done = {};
   o.shopping.items = objs(o.shopping.items);
+  o.meds.list = objs(o.meds.list).map((m) => {
+    m.times = Array.isArray(m.times) ? m.times.filter((t) => /^\d{2}:\d{2}$/.test(t)).sort() : [];
+    m.days = dayList(m.days);
+    for (const k of ['qty', 'days_n', 'lowAt']) m[k] = pos(m[k]);
+    m.qty ||= 1;
+    if (m.stock !== undefined && m.stock !== null) m.stock = pos(m.stock);
+    return m;
+  });
+  if (!isObj(o.meds.log)) o.meds.log = {};
 }
 
 // Completa lo que falte (por si un respaldo viene de una versión anterior), limpia y migra los datos.
@@ -230,6 +243,7 @@ export function withDefaults(data) {
   out.habits = { ...base.habits, ...(d.habits || {}) };
   if (!Array.isArray(out.habits.list)) out.habits.list = [];
   if (!out.habits.done || typeof out.habits.done !== 'object') out.habits.done = {};
+  out.meds = { ...base.meds, ...(d.meds || {}) };
   out.shopping = { ...base.shopping, ...(d.shopping || {}) };
   if (!Array.isArray(out.shopping.items)) out.shopping.items = [];
   // Ahorro por cuentas (v2.4): los movimientos antiguos quedan en "Ahorro general".

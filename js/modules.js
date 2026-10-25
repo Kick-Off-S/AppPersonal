@@ -8,6 +8,7 @@ export const MODULES = [
   { id: 'finance', name: 'Finanzas', desc: 'Sueldo, gastos, gastos fijos, cuotas, topes y ahorro.', tabs: ['Gastos', 'Ahorro'] },
   { id: 'exercise', name: 'Ejercicio', desc: 'Rutinas por día que se repiten cada semana, marcar ejercicios hechos y actividad extra con calorías quemadas.', tabs: ['Ejercicio'] },
   { id: 'habits', name: 'Hábitos', desc: 'Hábitos diarios con check, rachas y calendario del mes.', tabs: ['Hábitos'] },
+  { id: 'meds', name: 'Medicamentos', desc: 'Horarios de tus medicamentos, marcar tomas, cumplimiento y aviso de stock bajo.', tabs: ['Remedios'] },
   { id: 'shopping', name: 'Lista de compras', desc: 'Lista del súper (se puede armar sola con tu dieta); al terminar registra el gasto.', tabs: ['Compras'] },
 ];
 

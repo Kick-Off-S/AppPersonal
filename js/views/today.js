@@ -5,6 +5,7 @@ import { mealDetail, macroChips } from './diet.js';
 import { isOn } from '../modules.js';
 import { routinesFor, routineProgress, burnedFor } from './exercise.js';
 import { habitsFor, isDone, toggleHabit, streakOf } from './habits.js';
+import { dosesFor, setDose } from './meds.js';
 import { esc, uid, num, parseMoney, openSheet, toast, todayStr, addDays, dayLabel, vibrate } from '../util.js';
 
 let root;
@@ -43,6 +44,7 @@ function render() {
       <div class="label" data-act="today">${dayLabel(date)}</div>
       <button class="icon" data-act="next" aria-label="Día siguiente">›</button></div>
     ${health ? healthTop() : ''}
+    ${isOn('meds') ? medsCard() : ''}
     ${isOn('habits') ? habitsCard() : ''}
     ${isOn('exercise') ? exerciseCard() : ''}
     ${health ? healthBottom() : ''}`;
@@ -105,6 +107,21 @@ function render() {
   }
 }
 
+// Medicamentos del día con check directo (solo si hay medicamentos cargados).
+function medsCard() {
+  const list = dosesFor(date);
+  if (!state.meds.list.length || !list.length) return '';
+  const n = list.filter((x) => x.status === 'taken').length;
+  return `<div class="card"><div class="row between"><h2 style="margin:0">Medicamentos</h2><span class="small muted">${n} de ${list.length}</span></div>
+    ${list
+      .map(
+        ({ med, time, status }) => `<div class="item ${status ? 'done' : ''}"><span class="time" style="min-width:44px">${time}</span>
+        <div class="grow"><div class="t">${esc(med.name)}${med.dose ? ` <span class="muted small">${esc(med.dose)}</span>` : ''}</div>${status === 'skipped' ? '<div class="s">omitida</div>' : ''}</div>
+        <button class="check ${status === 'taken' ? 'on' : ''}" data-act="med" data-id="${med.id}" data-t="${time}" aria-label="Marcar ${esc(med.name)} de las ${time} como tomada" aria-pressed="${status === 'taken'}">✓</button></div>`
+      )
+      .join('')}</div>`;
+}
+
 // Hábitos del día con check directo.
 function habitsCard() {
   const list = habitsFor(date);
@@ -152,6 +169,7 @@ function onClick(e) {
   else if (act === 'next') date = addDays(date, 1);
   else if (act === 'today') date = todayStr();
   else if (act === 'habit') toggleHabit(date, id);
+  else if (act === 'med') setDose(date, state.meds.list.find((m) => m.id === id), t.dataset.t, 'taken');
   else if (act === 'toggle') {
     const d = (state.diet.done[date] ||= {});
     if (d[id]) delete d[id];
