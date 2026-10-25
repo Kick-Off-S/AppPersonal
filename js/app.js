@@ -217,9 +217,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>💊 Medicamentos (nuevo módulo):</b> anota tus medicamentos con sus horarios, días y duración; marca cada toma como tomada u omitida, mira tu cumplimiento de 7 días y recibe aviso cuando quede poco stock. Las tomas del día aparecen en <b>Hoy</b>.</li>
-      <li>Está en <b>Más → Remedios</b>. Si no lo necesitas, apágalo en Ajustes → Módulos.</li>
-      <li>Es un recordatorio personal: no reemplaza las indicaciones de tu médico.</li>
+      <li><b>🧮 Evaluación nutricional (Dieta → arriba):</b> con tu edad, estatura, peso, actividad y objetivo calcula tus calorías y macros (proteína, carbohidratos y grasas) del día.</li>
+      <li><b>Plan guía de la semana:</b> si no tienes plan de nutricionista, genera uno editable con alimentos y cantidades, ajustado a tu meta.</li>
+      <li>Es solo una guía: no reemplaza a un nutricionista. No se generan planes para menores de 18 años, embarazo o enfermedades.</li>
+      <li>De la 4.4: módulo de Medicamentos (Más → Remedios).</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.4';
+export const APP_VERSION = '4.5';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -169,6 +169,8 @@ export function normalizePlan(plan) {
 function normalize(o) {
   const st = o.settings;
   for (const k of ['kcalGoal', 'waterGoal', 'goalKg']) st[k] = pos(st[k]);
+  st.macroGoals = isObj(st.macroGoals) ? { p: pos(st.macroGoals.p), c: pos(st.macroGoals.c), f: pos(st.macroGoals.f) } : null;
+  if (st.profile !== undefined && !isObj(st.profile)) st.profile = null;
   o.diet.plan = normalizePlan(o.diet.plan);
   if (!isObj(o.diet.done)) o.diet.done = {};
   for (const [d, marks] of Object.entries(o.diet.done)) if (!isObj(marks)) delete o.diet.done[d];

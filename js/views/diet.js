@@ -3,7 +3,8 @@
 import { state, save, clean, normalizePlan } from '../store.js';
 import { foodPicker, scaled } from '../foodpicker.js';
 import { esc, uid, num, openSheet, toast, todayStr, weekdayIndex, shareFile, DAYS, DAYS_SHORT } from '../util.js';
-import { mealSnapshot } from '../calc.js';
+import { mealSnapshot, latestWeight } from '../calc.js';
+import { ACTIVITY, GOALS, evaluate, notEligible, generatePlan } from '../nutrition.js';
 
 let root;
 let day = 0; // 0 = lunes
@@ -35,6 +36,7 @@ function render() {
   const pct = (g, k) => (mk ? Math.round(((g * k) / mk) * 100) : 0);
   const noMacros = list.filter((m) => !hasMacros(m)).length;
   const goal = state.settings.kcalGoal || 0;
+  const mg = state.settings.macroGoals;
   const chips = DAYS_SHORT.map(
     (l, i) => `<button class="chip ${i === day ? 'sel' : ''} ${i === today ? 'today' : ''}" data-act="day" data-i="${i}" aria-label="${DAYS[i]}">${l}</button>`
   ).join('');
@@ -50,9 +52,9 @@ function render() {
       <div class="row between"><div class="mid">${DAYS[day]}</div><div class="amount">${num(total)} <span class="muted small">kcal</span></div></div>
       ${goal ? `<div class="small muted">Meta diaria ${num(goal)} kcal · ${total > goal ? `<span class="warn">${num(total - goal)} sobre la meta</span>` : `faltan ${num(goal - total)}`}</div>` : ''}
       <div class="macros">
-        <div><b>${num(P, 1)} g</b><span>Proteínas</span>${mk ? `<em>${pct(P, 4)}% de las kcal</em>` : ''}</div>
-        <div><b>${num(C, 1)} g</b><span>Carbohidratos</span>${mk ? `<em>${pct(C, 4)}% de las kcal</em>` : ''}</div>
-        <div><b>${num(F, 1)} g</b><span>Grasas</span>${mk ? `<em>${pct(F, 9)}% de las kcal</em>` : ''}</div>
+        <div><b>${num(P, 1)} g</b><span>Proteínas</span>${mg ? `<em>meta ${num(mg.p)} g</em>` : mk ? `<em>${pct(P, 4)}% de las kcal</em>` : ''}</div>
+        <div><b>${num(C, 1)} g</b><span>Carbohidratos</span>${mg ? `<em>meta ${num(mg.c)} g</em>` : mk ? `<em>${pct(C, 4)}% de las kcal</em>` : ''}</div>
+        <div><b>${num(F, 1)} g</b><span>Grasas</span>${mg ? `<em>meta ${num(mg.f)} g</em>` : mk ? `<em>${pct(F, 9)}% de las kcal</em>` : ''}</div>
       </div>
       ${
         noMacros
@@ -76,7 +78,12 @@ function render() {
         .join('')}</div>`;
   }
 
-  root.innerHTML = `<div class="chips">${chips}</div>${body}
+  const prof = state.settings.profile;
+  const evalCard = prof
+    ? `<div class="banner small" style="display:flex;align-items:center;gap:8px;justify-content:space-between"><span>🧮 Meta guía: <b>${num(state.settings.kcalGoal)} kcal</b>${mg ? ` · P ${num(mg.p)} · C ${num(mg.c)} · G ${num(mg.f)} g` : ''} · ${esc(GOALS[prof.goal]?.name || '')}</span><button class="ghost sm" data-act="eval" style="flex:none">Actualizar</button></div>`
+    : `<div class="card"><b>🧮 ¿No tienes un plan de nutricionista?</b><div class="small muted" style="margin-top:4px">Calcula tus calorías y macros según tu edad, estatura, peso y objetivo, y genera un plan guía de la semana.</div>
+        <button class="block" data-act="eval" style="margin-top:10px">Hacer mi evaluación</button></div>`;
+  root.innerHTML = `${evalCard}<div class="chips">${chips}</div>${body}
     <div class="actions"><button class="primary wide" data-act="add">+ Agregar comida</button>
     ${list.length ? '<button data-act="copy">Copiar día</button>' : ''}</div>
     <div class="row" style="justify-content:center;gap:18px;margin-top:14px">
@@ -99,7 +106,83 @@ function onClick(e) {
   else if (act === 'copy') copySheet();
   else if (act === 'example') loadExample();
   else if (act === 'share') sharePlan();
+  else if (act === 'eval') evalSheet();
   else if (act === 'import') root.querySelector('#planfile').click();
+}
+
+// ---------- evaluación y plan guía ----------
+const GUIDE = 'Esto es solo una guía calculada con fórmulas generales. No reemplaza a un nutricionista: consulta con un profesional, sobre todo si tienes alguna condición de salud.';
+
+function evalSheet() {
+  const pr = state.settings.profile || {};
+  const w = latestWeight();
+  let sex = pr.sex || 'f';
+  let goal = pr.goal || 'keep';
+  openSheet(
+    `<h3>Evaluación nutricional</h3>
+    <div class="banner warn small" style="margin-top:4px">${GUIDE}</div>
+    <form id="ev">
+      <label class="field">Sexo</label>
+      <div class="seg" id="sex"><button type="button" data-v="f">Mujer</button><button type="button" data-v="m">Hombre</button></div>
+      <div class="three"><label class="field">Edad<input name="age" inputmode="numeric" value="${pr.age || ''}" placeholder="Años"></label>
+        <label class="field">Estatura<input name="height" inputmode="numeric" value="${pr.height || ''}" placeholder="cm"></label>
+        <label class="field">Peso<input name="weight" inputmode="decimal" value="${w?.kg ?? pr.weight ?? ''}" placeholder="kg"></label></div>
+      <label class="field">Actividad física<select name="activity">${ACTIVITY.map((a) => `<option value="${a.id}" ${a.id === (pr.activity || 'light') ? 'selected' : ''}>${a.name}: ${a.desc}</option>`).join('')}</select></label>
+      <label class="field">Objetivo</label>
+      <div class="seg" id="goal">${Object.entries(GOALS).map(([k, g]) => `<button type="button" data-v="${k}">${g.short}</button>`).join('')}</div>
+      <label class="cuotas"><input type="checkbox" name="pregnant"> <span>Estoy embarazada o en lactancia</span></label>
+      <label class="cuotas"><input type="checkbox" name="condition"> <span>Tengo una enfermedad o condición de salud (diabetes, renal, cardíaca, trastorno alimentario…)</span></label>
+      <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button class="primary">Calcular</button></div>
+    </form>
+    <div id="res"></div>`,
+    (sheet, close) => {
+      const $ = (q) => sheet.querySelector(q);
+      const segs = () => {
+        sheet.querySelectorAll('#sex button').forEach((b) => b.classList.toggle('sel', b.dataset.v === sex));
+        sheet.querySelectorAll('#goal button').forEach((b) => b.classList.toggle('sel', b.dataset.v === goal));
+      };
+      $('#sex').onclick = (e) => e.target.closest('[data-v]') && ((sex = e.target.closest('[data-v]').dataset.v), segs());
+      $('#goal').onclick = (e) => e.target.closest('[data-v]') && ((goal = e.target.closest('[data-v]').dataset.v), segs());
+      segs();
+      $('#ev').addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        const f = new FormData(ev.target);
+        const n = (k) => parseFloat(String(f.get(k) || '').replace(',', '.'));
+        const data = { sex, goal, age: Math.round(n('age')), height: n('height'), weight: n('weight'), activity: f.get('activity') };
+        if (!(data.age > 0 && data.age < 120)) return toast('Escribe tu edad');
+        if (!(data.height >= 120 && data.height <= 230)) return toast('Escribe tu estatura en centímetros (ej: 165)');
+        if (!(data.weight >= 30 && data.weight <= 300)) return toast('Escribe tu peso en kilos (ej: 68,5)');
+        const no = notEligible({ age: data.age, pregnant: !!f.get('pregnant'), condition: !!f.get('condition') });
+        if (no) return ($('#res').innerHTML = `<div class="banner warn">${esc(no)}</div>`);
+        const r = evaluate(data);
+        $('#res').innerHTML = `<div class="card" style="box-shadow:none">
+          <div class="row between"><span class="muted small">Tu meta diaria (guía)</span><b class="mid">${num(r.kcal)} kcal</b></div>
+          <div class="macros m4" style="margin-top:10px"><div><b>${num(r.p)}</b><span>Proteína g</span></div><div><b>${num(r.c)}</b><span>Carbos g</span></div><div><b>${num(r.f)}</b><span>Grasa g</span></div><div><b>${num(r.bmi, 1)}</b><span>IMC</span></div></div>
+          <div class="small muted" style="margin-top:8px">Gasto en reposo ~${num(r.bmr)} kcal · gasto diario estimado ~${num(r.tdee)} kcal · IMC ${num(r.bmi, 1)} (${r.bmiCat}).${r.floored ? ' La meta se dejó en un mínimo seguro: bajar más rápido no es recomendable sin supervisión.' : ''}</div>
+          <label class="cuotas"><input type="checkbox" id="logw" ${!w || Math.abs(w.kg - data.weight) >= 0.1 || w.date !== todayStr() ? 'checked' : ''}> <span>Registrar ${num(data.weight, 1)} kg como peso de hoy</span></label>
+          <div class="actions"><button type="button" id="goals">Usar solo las metas</button><button type="button" class="primary" id="plan">Metas + plan de la semana</button></div>
+          <p class="small muted" style="margin-bottom:0">El plan es un punto de partida editable: cada comida trae sus alimentos y cantidades. ${GUIDE}</p></div>`;
+        $('#res').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        const apply = (withPlan) => {
+          if (withPlan && Object.values(state.diet.plan).some((d) => d.length) && !confirm('Se reemplazará tu plan actual por el plan guía. ¿Continuar? (Si quieres conservarlo, primero usa "Compartir plan").')) return;
+          state.settings.profile = { ...data, at: todayStr() };
+          state.settings.kcalGoal = r.kcal;
+          state.settings.macroGoals = { p: r.p, c: r.c, f: r.f };
+          if ($('#logw').checked) {
+            state.weight = state.weight.filter((x) => x.date !== todayStr());
+            state.weight.push({ id: uid(), date: todayStr(), kg: Math.round(data.weight * 10) / 10 });
+          }
+          if (withPlan) state.diet.plan = generatePlan(r.kcal, r.p);
+          save();
+          close();
+          toast(withPlan ? 'Plan guía listo: revísalo y ajústalo a tu gusto' : 'Metas guardadas');
+          render();
+        };
+        $('#goals').onclick = () => apply(false);
+        $('#plan').onclick = () => apply(true);
+      });
+    }
+  );
 }
 
 // ---------- compartir / importar el plan ----------
