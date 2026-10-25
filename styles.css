@@ -413,3 +413,8 @@ body.privacy > :not(#lock) { filter: blur(24px); }
 /* ---- nube ---- */
 .code { font: 700 18px/1.4 ui-monospace, Menlo, monospace; letter-spacing: 0.04em; text-align: center; background: var(--bg); border: 1px dashed var(--primary); border-radius: 12px; padding: 12px; word-break: break-all; user-select: all; }
 .ntime { min-height: 38px; padding: 6px 10px; }
+.privacy h4 { margin: 16px 0 4px; font-size: 15px; }
+.privacy p, .privacy li { font-size: 14px; line-height: 1.45; margin: 4px 0; }
+.privacy ul { padding-left: 18px; margin: 4px 0; }
+.consent { align-items: flex-start; }
+.consent small { font-size: 13px; }

@@ -27,6 +27,8 @@ const setCfg = (patch) => {
   }
   return c;
 };
+// Fecha en que se aceptó cada uso de la nube ('push' | 'backup'); se quita al desactivarlo.
+export const saveConsent = (kind, on = true) => setCfg({ consent: { ...cfg().consent, [kind]: on ? Date.now() : null } });
 const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
 const b64url = (b) => toB64(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const deviceId = () => cfg().device || setCfg({ device: b64url(rand(18)) }).device;
@@ -111,18 +113,21 @@ export async function disablePush() {
   await sub?.unsubscribe().catch(() => {});
   await api('DELETE', `/push/${deviceId()}`).catch(() => {});
   setCfg({ pushEndpoint: null, pushHash: '' });
+  saveConsent('push', false);
 }
 
-// Envía las horas de aviso al servidor (solo si cambiaron).
+// Envía las horas de aviso al servidor si cambiaron, o una vez por semana para indicar que el teléfono
+// sigue en uso (el servidor borra los avisos que llevan 90 días sin actualizarse).
+const WEEK = 7 * 24 * 3600 * 1000;
 export async function syncPush(force = false) {
   if (!cfg().pushEndpoint) return;
   const sub = await currentSub().catch(() => null);
   if (!sub) return setCfg({ pushEndpoint: null });
   const body = { endpoint: sub.endpoint, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Santiago', slots: pushSlots() };
   const hash = JSON.stringify(body);
-  if (!force && hash === cfg().pushHash) return;
+  if (!force && hash === cfg().pushHash && Date.now() - (cfg().pushAt || 0) < WEEK) return;
   await api('PUT', `/push/${deviceId()}`, body);
-  setCfg({ pushHash: hash });
+  setCfg({ pushHash: hash, pushAt: Date.now() });
 }
 
 export const testPush = () => api('GET', `/push/${deviceId()}?test=1`);
@@ -177,6 +182,7 @@ export async function disableBackup(removeRemote) {
   const c = backupCfg();
   if (c && removeRemote) await api('DELETE', `/backup/${c.id}`, { token: c.token }).catch(() => {});
   setCfg({ backup: null });
+  saveConsent('backup', false);
 }
 
 // Recuperar en un teléfono nuevo (o después de borrar la app) con el código y la contraseña.
@@ -194,6 +200,7 @@ export async function restoreFromCloud(code, password) {
   const { payload, token } = JSON.parse(new TextDecoder().decode(plain));
   await replaceState(payload.data, { label: 'Antes de recuperar desde la nube', keepLock: true });
   // este teléfono sigue respaldando en el mismo código
+  saveConsent('backup');
   setCfg({ backup: { id, token, salt: env.salt, iter: env.iter || ITER, key: toB64(key), last: r.updated, dirty: false } });
   return r.updated;
 }

@@ -75,6 +75,10 @@ se arman en `sw.js` (`compose()`).
   Worker manda un aviso vacío a quien le toque; el teléfono lee sus datos y arma el mensaje.
 - **Respaldo**: se cifra en el teléfono (AES-GCM + PBKDF2) con la contraseña del usuario. El servidor guarda el texto
   cifrado bajo el código de recuperación y solo acepta cambios con un token secreto del teléfono.
+- **Privacidad**: el aviso está en `js/privacy.js` y la app pide consentimiento antes de activar cada función.
+  Un cron diario (04:00 UTC) borra respaldos sin actualizar en 365 días y avisos sin actualizar en 90 (el teléfono
+  los refresca una vez por semana). El Worker no tiene registros (`observability` apagado).
+  Si cambias qué se envía o los plazos, actualiza `js/privacy.js` (hay una prueba que compara los plazos).
 
 Publicar cambios del servidor:
 ```bash

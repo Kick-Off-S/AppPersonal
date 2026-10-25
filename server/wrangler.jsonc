@@ -4,12 +4,14 @@
   "main": "src/index.js",
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
-  // revisa cada minuto si hay avisos que enviar
-  "triggers": { "crons": ["* * * * *"] },
+  // cada minuto: avisos que enviar · cada día a las 04:00 UTC: borrar datos sin uso
+  "triggers": { "crons": ["* * * * *", "0 4 * * *"] },
   "d1_databases": [
     { "binding": "DB", "database_name": "gestion-personal", "database_id": "6771f761-4ac9-4144-b1df-ab621b4f747a" }
   ],
   // clave pública de notificaciones (la privada es un secreto: VAPID_PRIVATE_JWK)
   "vars": { "VAPID_PUBLIC": "BMp-SBx--fu5snb0TuQdFlPcHg52e2nsuf9BRZaTB48mO7Tz_mjafPlXe9AXWNK_0IfsQpIykddL8Z_oMBvDZZQ" },
-  "observability": { "enabled": true }
+  // sin registros de visitas (privacidad): el servidor no guarda IPs ni pedidos
+  "observability": { "enabled": false },
+  "logpush": false
 }

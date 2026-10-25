@@ -13,6 +13,11 @@ const ORIGINS = ['https://kick-off-s.github.io', 'http://localhost:8080', 'http:
 const PUSH_HOSTS = [/\.push\.apple\.com$/, /^fcm\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /\.notify\.windows\.com$/, /^web\.push\.apple\.com$/];
 const MAX_BACKUP = 2_000_000; // caracteres (~1,5 MB de datos cifrados)
 const ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+// Borrado automático de datos sin uso (el aviso de privacidad de la app, js/privacy.js, informa estos plazos).
+const DAY = 24 * 3600 * 1000;
+const BACKUP_DAYS = 365;
+const PUSH_DAYS = 90;
+const CLEANUP_CRON = '0 4 * * *';
 
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const enc = new TextEncoder();
@@ -114,6 +119,14 @@ async function runReminders(env) {
   );
 }
 
+// Una vez al día: borra respaldos y avisos que nadie actualiza hace tiempo.
+export async function cleanup(env, now = Date.now()) {
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM backups WHERE updated < ?').bind(now - BACKUP_DAYS * DAY),
+    env.DB.prepare('DELETE FROM subs WHERE updated < ?').bind(now - PUSH_DAYS * DAY),
+  ]);
+}
+
 // ---------- rutas ----------
 async function route(req, env) {
   const url = new URL(req.url);
@@ -178,6 +191,6 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runReminders(env));
+    ctx.waitUntil(event.cron === CLEANUP_CRON ? cleanup(env) : runReminders(env));
   },
 };

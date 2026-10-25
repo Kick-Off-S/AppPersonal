@@ -219,10 +219,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>🔔 Notificaciones (Más → Ajustes):</b> avisos aunque la app esté cerrada para tus medicamentos, hábitos, rutina, agua y pagos. En iPhone la app debe estar en la pantalla de inicio.</li>
-      <li><b>☁️ Respaldo automático:</b> tus datos se respaldan solos, cifrados con una contraseña tuya. Guarda el código de recuperación: con él y tu contraseña los recuperas en otro teléfono.</li>
-      <li>El servidor nunca ve tus datos: los avisos se arman en tu teléfono y el respaldo viaja cifrado.</li>
-      <li>De la 4.5: evaluación nutricional y plan guía (Dieta).</li>
+      <li><b>🔒 Aviso de privacidad (Más → Ajustes → Privacidad):</b> qué datos se guardan, dónde y cómo borrarlos.</li>
+      <li>Antes de activar las notificaciones o el respaldo en la nube, la app te explica qué se guarda y te pide aceptar.</li>
+      <li>Los datos en la nube que no se usan se borran solos (respaldos: 12 meses; avisos: 90 días) y el servidor no guarda registros de visitas.</li>
+      <li>De la 4.6: notificaciones y respaldo automático cifrado (Más → Ajustes).</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

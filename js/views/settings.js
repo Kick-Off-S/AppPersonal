@@ -6,6 +6,7 @@ import * as cloud from '../cloud.js';
 import { askBackupPassword, lockEnabled, setPin, checkPin, pinPad, biometricAvailable, registerBiometric } from '../security.js';
 import { openSheet } from '../util.js';
 import { PALETTES, MODES, setTheme } from '../theme.js';
+import { privacySheet } from '../privacy.js';
 
 let root;
 
@@ -80,6 +81,7 @@ function render() {
             <button class="ghost block sm" data-act="pin-change" style="margin-top:8px">Cambiar PIN</button>`
           : ''
       }
+      <button class="ghost block sm" data-act="privacy" style="margin-top:8px">Aviso de privacidad: qué datos se guardan y dónde</button>
     </div>
 
     ${notifCard()}
@@ -105,7 +107,7 @@ function render() {
 
     <div class="card"><h2>Zona de riesgo</h2>
       <button class="danger block" data-act="reset">Borrar todos mis datos</button></div>
-    <p class="small muted" style="text-align:center">Gestión Personal v${APP_VERSION} · Funciona sin internet · Sin cuentas ni servidores</p>`;
+    <p class="small muted" style="text-align:center">Gestión Personal v${APP_VERSION} · Funciona sin internet · Sin cuentas · La nube es opcional</p>`;
 }
 
 // PIN nuevo (dos veces). Resuelve con el PIN o null.
@@ -238,6 +240,29 @@ function notifCard() {
     }</div>`;
 }
 
+function consentRow(text) {
+  return `<label class="mod consent"><input type="checkbox" class="switch" name="ok" id="ok"><span class="grow"><small>${text} Detalle en Ajustes → Privacidad → Aviso de privacidad.</small></span></label>`;
+}
+
+function pushConsentSheet() {
+  openSheet(
+    `<h3>Activar notificaciones</h3>
+    <p class="small muted" style="margin-top:0">Para avisarte con la app cerrada, el servidor de la app (Cloudflare, puede estar fuera de Chile) guarda la dirección de avisos de este teléfono, tu zona horaria y las <b>horas</b> de aviso. No recibe nombres de medicamentos, montos ni otros datos: el mensaje se arma en tu teléfono.</p>
+    ${consentRow('Acepto que se guarden esas horas de aviso para recibir notificaciones. Se borran al desactivarlas, o si pasan 90 días sin abrir la app.')}
+    <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button type="button" class="primary" id="go">Activar</button></div>`,
+    (sheet, close) =>
+      (sheet.querySelector('#go').onclick = () => {
+        if (!sheet.querySelector('#ok').checked) return toast('Para activar, marca que aceptas');
+        // sin await antes: iPhone exige que el permiso se pida directo desde el toque
+        const p = cloud.enablePush();
+        close();
+        p.then(() => (cloud.saveConsent('push'), (pushOn = true), render(), toast('Notificaciones activadas'))).catch((err) =>
+          toast(err.message === 'permiso' ? 'Permiso denegado: actívalo en Ajustes del teléfono → Notificaciones' : 'No se pudo activar. Revisa tu internet.')
+        );
+      })
+  );
+}
+
 // ---------- respaldo automático en la nube ----------
 function cloudCard() {
   const c = cloud.backupCfg();
@@ -265,6 +290,7 @@ function cloudOnSheet() {
     <p class="small muted" style="margin-top:0">Elige una contraseña para cifrar tus respaldos (mínimo 10 caracteres; mejor una frase). <b>Si la olvidas, nadie puede recuperar tus datos</b>, ni siquiera nosotros.</p>
     <form id="cf"><label class="field">Contraseña<input name="p1" type="password" autocomplete="new-password" placeholder="Ej: mi perro come sandia"></label>
       <label class="field">Repetir contraseña<input name="p2" type="password" autocomplete="new-password"></label>
+      ${consentRow('Acepto guardar una copia <b>cifrada</b> de mis datos (incluidos datos de salud como medicamentos y peso) en servidores de Cloudflare, que pueden estar fuera de Chile. Se borra si pasan 12 meses sin usar la app, o cuando yo la desactive.')}
       <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button class="primary" id="go">Activar</button></div></form>
     <div id="done"></div>`,
     (sheet, close) =>
@@ -273,11 +299,13 @@ function cloudOnSheet() {
         const f = new FormData(ev.target);
         if (String(f.get('p1')).length < 10) return toast('Usa al menos 10 caracteres');
         if (f.get('p1') !== f.get('p2')) return toast('Las contraseñas no coinciden');
+        if (!f.get('ok')) return toast('Para activar, marca que aceptas');
         const go = sheet.querySelector('#go');
         go.disabled = true;
         go.textContent = 'Cifrando y subiendo…';
         try {
           const code = await cloud.setupBackup(f.get('p1'));
+          cloud.saveConsent('backup');
           sheet.querySelector('#cf').hidden = true;
           sheet.querySelector('#done').innerHTML = `<div class="banner">Listo: tus datos ya están respaldados.</div>
             <p class="small">Tu <b>código de recuperación</b> (guárdalo junto a tu contraseña, por ejemplo en Notas o en tu gestor de contraseñas):</p>
@@ -359,13 +387,8 @@ function onChange(e) {
 async function onClick(e) {
   const t = e.target.closest('[data-act]');
   if (!t) return;
-  if (t.dataset.act === 'push-on') {
-    // sin await antes: iPhone exige que el permiso se pida directo desde el toque
-    return cloud
-      .enablePush()
-      .then(() => ((pushOn = true), render(), toast('Notificaciones activadas')))
-      .catch((err) => toast(err.message === 'permiso' ? 'Permiso denegado: actívalo en Ajustes del teléfono → Notificaciones' : 'No se pudo activar. Revisa tu internet.'));
-  }
+  if (t.dataset.act === 'push-on') return pushConsentSheet();
+  if (t.dataset.act === 'privacy') return privacySheet();
   if (t.dataset.act === 'push-off') return cloud.disablePush().then(() => ((pushOn = false), render(), toast('Notificaciones desactivadas')));
   if (t.dataset.act === 'push-test') return cloud.syncPush(true).then(cloud.testPush).then(() => toast('Aviso enviado: debería llegar en unos segundos')).catch(() => toast('No se pudo enviar'));
   if (t.dataset.act === 'cloud-on') return cloudOnSheet();

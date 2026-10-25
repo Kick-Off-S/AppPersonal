@@ -50,3 +50,19 @@ test('mensaje del aviso: medicamento de esta hora no tomado, hábitos y pagos pe
   st.meds.log = { '2026-10-26': { m: { '08:00': 'taken' } } };
   assert.ok(!ctx.compose(st, now).some((m) => m.url === '#meds'), 'ya tomado: no avisa');
 });
+
+test('servidor: borra respaldos y avisos sin uso con los plazos que informa el aviso de privacidad', async () => {
+  const { cleanup, due } = await import('../server/src/index.js');
+  const { BACKUP_DAYS, PUSH_DAYS } = await import('../js/privacy.js');
+  const calls = [];
+  const env = { DB: { prepare: (sql) => ({ bind: (...a) => ({ sql, a }) }), batch: async (q) => calls.push(...q) } };
+  const now = Date.UTC(2026, 9, 25);
+  await cleanup(env, now);
+  const day = 24 * 3600 * 1000;
+  assert.deepEqual(calls.map((c) => [c.sql.split(' ')[2], (now - c.a[0]) / day]), [['backups', BACKUP_DAYS], ['subs', PUSH_DAYS]]);
+  // avisos: hora exacta, día de la semana o fecha puntual
+  const l = { time: '08:00', date: '2026-10-26', wd: 0 };
+  assert.ok(due([{ t: '08:00', d: [0, 3] }], l));
+  assert.ok(!due([{ t: '08:00', d: [1] }], l));
+  assert.ok(due([{ t: '08:00', date: '2026-10-26' }], l) && !due([{ t: '08:00', date: '2026-10-27' }], l));
+});
