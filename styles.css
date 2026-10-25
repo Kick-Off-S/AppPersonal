@@ -418,3 +418,4 @@ body.privacy > :not(#lock) { filter: blur(24px); }
 .privacy ul { padding-left: 18px; margin: 4px 0; }
 .consent { align-items: flex-start; }
 .consent small { font-size: 13px; }
+.diag { white-space: pre-wrap; font-size: 12px; background: var(--bg); padding: 10px; border-radius: 10px; max-height: 45vh; overflow: auto; }

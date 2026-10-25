@@ -1,4 +1,4 @@
-import { state, save, replaceState, defaults, APP_VERSION, VERSION, getPrevious } from '../store.js';
+import { state, save, replaceState, defaults, APP_VERSION, VERSION, getPrevious, diagLog } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast } from '../util.js';
 import { MODULES, isOn, setModule } from '../modules.js';
@@ -95,6 +95,7 @@ function render() {
       ${previous ? `<button class="ghost block sm" data-act="undo" style="margin-top:6px">Deshacer: volver a los datos de ${esc(previous.label.toLowerCase())} (${new Date(previous.at).toLocaleString('es-CL')})</button>` : ''}
       <div class="actions"><button class="primary" data-act="export">Guardar respaldo</button><button data-act="import">Restaurar</button></div>
       <input type="file" id="file" accept=".json,application/json" hidden>
+      <button class="ghost block sm" data-act="diag" style="margin-top:6px">Diagnóstico de datos</button>
       <p class="small muted" style="margin-bottom:0">Al guardar, elige <b>Guardar en Archivos</b> (o envíatelo por WhatsApp o correo). Para pasarlo a otro teléfono, abre la app allá y toca <b>Restaurar</b>. La app te lo recordará cada 7 días.</p>
     </div>
 
@@ -314,10 +315,10 @@ export function cloudOnSheet() {
             <div class="actions"><button type="button" id="copy">Copiar código</button><button type="button" class="primary" data-close>Listo</button></div>`;
           sheet.querySelector('#copy').onclick = () => navigator.clipboard?.writeText(code).then(() => toast('Código copiado'));
           render();
-        } catch {
+        } catch (e) {
           go.disabled = false;
           go.textContent = 'Activar';
-          toast('No se pudo conectar con el servidor. Revisa tu internet.');
+          toast(e.message === 'vacío' ? 'Aún no hay datos que respaldar: registra algo primero' : 'No se pudo conectar con el servidor. Revisa tu internet.');
         }
       })
   );
@@ -394,7 +395,17 @@ async function onClick(e) {
   if (t.dataset.act === 'push-test') return cloud.syncPush(true).then(cloud.testPush).then(() => toast('Aviso enviado: debería llegar en unos segundos')).catch(() => toast('No se pudo enviar'));
   if (t.dataset.act === 'cloud-on') return cloudOnSheet();
   if (t.dataset.act === 'cloud-restore') return cloudRestoreSheet();
-  if (t.dataset.act === 'cloud-now') return cloud.uploadBackup().then(() => (toast('Respaldo subido ✅'), render())).catch(() => toast('No se pudo conectar con el servidor'));
+  if (t.dataset.act === 'cloud-now') return cloud.uploadBackup().then(() => (toast('Respaldo subido ✅'), render())).catch((err) => toast(err.message === 'vacío' ? 'La app está vacía: no se sube para no tapar tu respaldo' : 'No se pudo conectar con el servidor'));
+  if (t.dataset.act === 'diag') {
+    const log = diagLog();
+    const txt = `Gestión Personal v${APP_VERSION}\n${navigator.userAgent}\n\n${log.join('\n') || 'Sin eventos'}`;
+    return openSheet(
+      `<h3>Diagnóstico de datos</h3><p class="small muted" style="margin-top:0">Cómo se abrieron y guardaron tus datos en este teléfono (sin contenido personal). Si pierdes datos, copia esto y envíaselo a quien te compartió la app.</p>
+      <pre class="diag">${esc(log.slice().reverse().join('\n') || 'Sin eventos todavía')}</pre>
+      <div class="actions"><button id="copy">Copiar</button><button class="primary" data-close>Listo</button></div>`,
+      (sheet) => (sheet.querySelector('#copy').onclick = () => navigator.clipboard?.writeText(txt).then(() => toast('Copiado')))
+    );
+  }
   if (t.dataset.act === 'cloud-code') {
     const code = cloud.formatCode(cloud.backupCfg().id);
     return openSheet(`<h3>Tu código de recuperación</h3><div class="code">${esc(code)}</div><p class="small muted">Con este código y tu contraseña recuperas tus datos en otro teléfono.</p><div class="actions"><button id="copy">Copiar</button><button class="primary" data-close>Listo</button></div>`, (sheet) => {

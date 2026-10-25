@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.8';
+export const APP_VERSION = '4.9';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -274,17 +274,60 @@ export function withDefaults(data) {
 
 export let state = defaults();
 
+// ¿Hay datos del usuario? (no cuenta ajustes ni metas)
+export const hasDataIn = (s) =>
+  !!(
+    s.savings.length ||
+    s.weight.length ||
+    s.finance.expenses.length ||
+    s.finance.extras.length ||
+    s.finance.loans.length ||
+    s.finance.fixed.length ||
+    Object.keys(s.log).length ||
+    Object.keys(s.water).length ||
+    Object.values(s.diet.plan).some((d) => d.length) ||
+    s.exercise.routines.length ||
+    s.habits.list.length ||
+    s.shopping.items.length ||
+    s.meds.list.length
+  );
+
+// ---------- diagnóstico ----------
+// Registro corto (últimos 40 eventos) de cómo se cargaron y guardaron los datos, para entender
+// una pérdida de datos si vuelve a ocurrir. Solo vive en este teléfono (Ajustes → Respaldo).
+const DIAG = 'gp-diag';
+export function diag(ev) {
+  try {
+    const a = JSON.parse(localStorage.getItem(DIAG) || '[]');
+    a.push(`${new Date().toLocaleString('es-CL')} · ${ev}`);
+    localStorage.setItem(DIAG, JSON.stringify(a.slice(-40)));
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+export function diagLog() {
+  try {
+    return JSON.parse(localStorage.getItem(DIAG) || '[]');
+  } catch {
+    return [];
+  }
+}
+
 // ---------- IndexedDB ----------
 // Una sola conexión, reutilizada. Abrir tiene tiempo límite (en iPhone a veces no responde) y si iOS
 // corta la conexión se vuelve a abrir. Cada operación se reintenta una vez.
 let dbP = null;
+let dbCreated = false; // la base no existía al abrir (app nueva… o datos perdidos)
 function openDB() {
   if (dbP) return dbP;
   dbP = new Promise((resolve, reject) => {
     if (!('indexedDB' in window)) return reject(new Error('sin indexedDB'));
     const t = setTimeout(() => reject(new Error('IndexedDB no responde')), 4000);
     const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onupgradeneeded = (e) => {
+      if (!e.oldVersion) dbCreated = true;
+      req.result.createObjectStore(STORE);
+    };
     req.onsuccess = () => {
       clearTimeout(t);
       const db = req.result;
@@ -346,6 +389,13 @@ export async function load() {
   if (fromIdb && fromLs && at(fromLs) > at(fromIdb)) raw = fromLs;
   readOnly = idbFailed;
   state = withDefaults(raw);
+  const desc = (x) => (x ? (hasDataIn(withDefaults(x)) ? `con datos (${at(x) || 'sin fecha'})` : 'sin datos') : 'vacía');
+  diag(`abrir: base ${idbFailed ? 'con error' : desc(fromIdb)}${dbCreated ? ' [base nueva]' : ''} · copia ${desc(fromLs)} · usa ${!raw ? 'nada' : raw === fromIdb ? 'base' : 'copia'}`);
+  // La base vino vacía o más vieja que la copia: se reescribe con la copia
+  if (raw && raw === fromLs && !idbFailed) {
+    diag('datos recuperados desde la copia local');
+    save();
+  }
   // Pide al navegador que no borre los datos si falta espacio.
   navigator.storage?.persist?.().catch(() => {});
   return state;
@@ -359,22 +409,19 @@ function flush() {
   if (readOnly) return Promise.resolve();
   state.savedAt = new Date().toISOString();
   const snapshot = JSON.stringify(state);
+  // Copia espejo en localStorage (otro almacenamiento del navegador): si la base vuelve vacía tras un
+  // cierre forzado de la app, al abrir se usa esta copia (gana la más reciente por savedAt).
+  let mirrored = true;
+  try {
+    localStorage.setItem(LS_KEY, snapshot);
+  } catch {
+    mirrored = false; // sin espacio: queda solo la base
+  }
   pending = (hasIDB() ? idb('readwrite', (s) => s.put(JSON.parse(snapshot), KEY)) : Promise.reject(new Error('sin indexedDB')))
-    .then(() => {
-      window.dispatchEvent(new Event('data-saved')); // p. ej., para el respaldo automático
-      // guardado normal OK: la copia de emergencia ya no sirve (y podría quedar vieja)
-      try {
-        localStorage.removeItem(LS_KEY);
-      } catch {
-        /* sin almacenamiento */
-      }
-    })
+    .then(() => window.dispatchEvent(new Event('data-saved'))) // p. ej., para el respaldo automático
     .catch(() => {
-      try {
-        localStorage.setItem(LS_KEY, snapshot);
-      } catch {
-        window.dispatchEvent(new Event('save-failed'));
-      }
+      diag('error al guardar en la base');
+      if (!mirrored) window.dispatchEvent(new Event('save-failed'));
     })
     .finally(() => {
       pending = null;
@@ -416,6 +463,7 @@ export async function getPrevious() {
 //   label: guarda antes una copia para deshacer.  keepLock: conserva el bloqueo de este teléfono.
 export async function replaceState(data, { label = '', keepLock = false } = {}) {
   if (label) await keepPrevious(label);
+  diag(`datos reemplazados: ${label || 'borrar todo'}`);
   const lock = state.settings?.lock;
   state = withDefaults(data);
   if (keepLock) state.settings.lock = lock;

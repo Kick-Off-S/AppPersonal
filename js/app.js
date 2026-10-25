@@ -237,10 +237,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>⏰ Hábitos con horario:</b> al crear o editar un hábito puedes ponerle una hora (opcional). Se ordenan por horario y, con las notificaciones activadas, te avisa a esa hora si no lo has marcado.</li>
-      <li><b>🛟 Protección de tus datos:</b> en iPhone, eliminar el ícono de la app (también para cambiarle el nombre) borra sus datos. Activa el <b>respaldo automático</b> en Ajustes para no volver a perder nada.</li>
-      <li>Si abres la app sin datos, ahora puedes recuperarlos directo desde la nube o desde un archivo.</li>
-      <li>De la 4.7: aviso de privacidad (Ajustes → Privacidad).</li>
+      <li><b>🛟 Datos más protegidos:</b> la app ahora guarda una segunda copia de tus datos en el teléfono. Si al abrirla el iPhone entrega la base vacía (por ejemplo, después de que la app se cierra de golpe), se recuperan solos desde esa copia.</li>
+      <li>El respaldo en la nube nunca se reemplaza por una app vacía.</li>
+      <li><b>Diagnóstico de datos</b> (Ajustes → Respaldo): muestra cómo se abrieron tus datos. Si vuelves a perder algo, cópialo y envíalo.</li>
+      <li>De la 4.8: hábitos con horario y aviso a su hora.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

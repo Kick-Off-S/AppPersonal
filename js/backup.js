@@ -1,23 +1,10 @@
 // Respaldo de datos (archivo .json) y exportación de gastos a planilla (.csv).
-import { state, save, saveNow, exportPayload } from './store.js';
+import { state, save, saveNow, exportPayload, hasDataIn } from './store.js';
 import { shareFile, toast, todayStr, openSheet } from './util.js';
 import { encryptText } from './security.js';
 import { backupCfg } from './cloud.js';
 
-export const hasData = () =>
-  !!(
-    state.savings.length ||
-    state.weight.length ||
-    state.finance.expenses.length ||
-    state.finance.extras.length ||
-    state.finance.loans.length ||
-    Object.keys(state.log).length ||
-    Object.values(state.diet.plan).some((d) => d.length) ||
-    state.exercise.routines.length ||
-    state.habits.list.length ||
-    state.shopping.items.length ||
-    state.meds.list.length
-  );
+export const hasData = () => hasDataIn(state);
 
 // Días desde el último respaldo (null = nunca).
 export function backupAge() {

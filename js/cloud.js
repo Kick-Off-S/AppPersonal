@@ -3,7 +3,7 @@
 //  - Notificaciones: solo la dirección de push del teléfono, su zona horaria y las HORAS de aviso.
 //    El mensaje ("Hora de tu Losartán", "Te faltan 2 hábitos") lo arma el propio teléfono (sw.js).
 //  - Respaldo: se cifra en el teléfono (AES-256) con una clave derivada de la contraseña del usuario.
-import { state, exportPayload, replaceState } from './store.js';
+import { state, exportPayload, replaceState, hasDataIn, diag } from './store.js';
 import { toB64, fromB64 } from './security.js';
 import { todayStr, addDays, monthKey, addMonths } from './util.js';
 
@@ -159,6 +159,11 @@ async function envelope(c) {
 export async function uploadBackup() {
   const c = backupCfg();
   if (!c) return null;
+  // Nunca se sube una app vacía: taparía el respaldo bueno (p. ej., si los datos se perdieron al abrir).
+  if (!hasDataIn(state)) {
+    diag('respaldo en la nube omitido: la app está vacía');
+    throw new Error('vacío');
+  }
   const r = await api('PUT', `/backup/${c.id}`, { token: c.token, data: await envelope(c) });
   setCfg({ backup: { ...c, last: r.updated || Date.now(), dirty: false } });
   return r;
