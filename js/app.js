@@ -4,6 +4,7 @@ import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js
 import { MODULES, isOn } from './modules.js';
 import { esc, openSheet, toast } from './util.js';
 import { applyTheme } from './theme.js';
+import { cloudStartup } from './cloud.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
 import * as finance from './views/finance.js';
@@ -168,6 +169,7 @@ if (lockEnabled()) await lockScreen();
 drawTabbar();
 show();
 if (!welcome()) whatsNew();
+cloudStartup(); // horas de aviso al día y respaldo automático pendiente
 
 // ---------- bienvenida: elegir módulos la primera vez ----------
 function welcome() {
@@ -217,10 +219,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>🧮 Evaluación nutricional (Dieta → arriba):</b> con tu edad, estatura, peso, actividad y objetivo calcula tus calorías y macros (proteína, carbohidratos y grasas) del día.</li>
-      <li><b>Plan guía de la semana:</b> si no tienes plan de nutricionista, genera uno editable con alimentos y cantidades, ajustado a tu meta.</li>
-      <li>Es solo una guía: no reemplaza a un nutricionista. No se generan planes para menores de 18 años, embarazo o enfermedades.</li>
-      <li>De la 4.4: módulo de Medicamentos (Más → Remedios).</li>
+      <li><b>🔔 Notificaciones (Más → Ajustes):</b> avisos aunque la app esté cerrada para tus medicamentos, hábitos, rutina, agua y pagos. En iPhone la app debe estar en la pantalla de inicio.</li>
+      <li><b>☁️ Respaldo automático:</b> tus datos se respaldan solos, cifrados con una contraseña tuya. Guarda el código de recuperación: con él y tu contraseña los recuperas en otro teléfono.</li>
+      <li>El servidor nunca ve tus datos: los avisos se arman en tu teléfono y el respaldo viaja cifrado.</li>
+      <li>De la 4.5: evaluación nutricional y plan guía (Dieta).</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

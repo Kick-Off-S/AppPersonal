@@ -2,6 +2,7 @@ import { state, save, replaceState, defaults, APP_VERSION, VERSION, getPrevious 
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast } from '../util.js';
 import { MODULES, isOn, setModule } from '../modules.js';
+import * as cloud from '../cloud.js';
 import { askBackupPassword, lockEnabled, setPin, checkPin, pinPad, biometricAvailable, registerBiometric } from '../security.js';
 import { openSheet } from '../util.js';
 import { PALETTES, MODES, setTheme } from '../theme.js';
@@ -18,6 +19,7 @@ export function mount(el) {
   root.onclick = onClick;
   root.onchange = onChange;
   render();
+  refreshPush();
   getPrevious().then((p) => {
     previous = p;
     if (p && root === el) render();
@@ -79,6 +81,9 @@ function render() {
           : ''
       }
     </div>
+
+    ${notifCard()}
+    ${cloudCard()}
 
     <div class="card"><h2>Respaldo</h2>
       <p class="small muted" style="margin-top:0">Tus datos viven solo en este teléfono. Guarda un respaldo para no perderlos si cambias de teléfono, borras la app o limpias Safari.</p>
@@ -201,7 +206,139 @@ async function enableBio() {
   }
 }
 
+// ---------- notificaciones ----------
+let pushOn = null; // estado real en este teléfono (permiso + suscripción)
+const refreshPush = () => cloud.pushSupported() && cloud.pushEnabled().then((v) => v !== pushOn && ((pushOn = v), root && render()));
+
+function notifCard() {
+  if (!cloud.pushSupported())
+    return `<div class="card"><h2>Notificaciones</h2><div class="small muted">${
+      cloud.isIOS() && !cloud.standalone()
+        ? 'Para recibir avisos en iPhone, primero instala la app en la pantalla de inicio (Safari → Compartir → Agregar a inicio) y ábrela desde ese ícono. Necesitas iOS 16.4 o superior.'
+        : 'Este navegador no permite notificaciones.'
+    }</div></div>`;
+  const n = cloud.notifCfg();
+  const row = (k, emoji, title, desc, time) => `<label class="mod"><input type="checkbox" class="switch" data-notif="${k}" ${n[k] ? 'checked' : ''}>
+      <span class="grow"><b>${emoji} ${title}</b><small>${desc}</small></span></label>
+      ${time && n[k] ? `<div class="row" style="justify-content:flex-end;margin:-6px 0 6px"><span class="small muted">a las</span><input type="time" class="ntime" data-ntime="${k}" value="${n[k]}" style="width:auto;margin-top:0"></div>` : ''}`;
+  return `<div class="card"><h2>Notificaciones</h2>
+    ${
+      pushOn
+        ? `<div class="small" style="margin-bottom:6px">Activadas en este teléfono ✅</div>
+          ${row('meds', '💊', 'Medicamentos', 'A la hora de cada toma.', false)}
+          ${row('habits', '✅', 'Hábitos pendientes', 'Si te falta alguno del día.', true)}
+          ${row('exercise', '💪', 'Rutina del día', 'Los días que tienes rutina.', true)}
+          ${row('water', '💧', 'Agua', 'A las 11, 14, 17 y 20 h, si vas atrasado.', false)}
+          ${row('bills', '📅', 'Pagos del día', 'Gastos fijos y cuotas que vencen.', true)}
+          <label class="mod"><input type="checkbox" class="switch" data-notif="details" ${n.details ? 'checked' : ''}>
+            <span class="grow"><b>Mostrar detalles</b><small>Desactívalo para que la pantalla bloqueada no muestre nombres de medicamentos ni montos.</small></span></label>
+          <div class="actions"><button data-act="push-test">Enviar aviso de prueba</button><button class="ghost" data-act="push-off">Desactivar</button></div>`
+        : `<p class="small muted" style="margin-top:0">Recibe avisos aunque la app esté cerrada: medicamentos, hábitos, rutina, agua y pagos. Tus datos no salen del teléfono: el mensaje se arma aquí.</p>
+          <button class="primary block" data-act="push-on">Activar notificaciones</button>`
+    }</div>`;
+}
+
+// ---------- respaldo automático en la nube ----------
+function cloudCard() {
+  const c = cloud.backupCfg();
+  const ago = (t) => {
+    if (!t) return 'aún no';
+    const m = Math.round((Date.now() - t) / 60000);
+    return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} días`;
+  };
+  return `<div class="card"><h2>Respaldo automático en la nube</h2>
+    ${
+      c
+        ? `<div class="small">Activado ✅ · último respaldo ${ago(c.last)}${c.dirty ? ' · hay cambios por subir' : ''}</div>
+          <div class="actions"><button data-act="cloud-now">Respaldar ahora</button><button data-act="cloud-code">Ver mi código</button></div>
+          <button class="ghost block sm" data-act="cloud-off">Desactivar</button>`
+        : `<p class="small muted" style="margin-top:0">Tus datos se respaldan solos mientras usas la app, cifrados en tu teléfono con una contraseña tuya: nadie más puede leerlos, ni siquiera el servidor. Si pierdes o cambias el teléfono, los recuperas con tu código y tu contraseña.</p>
+          <button class="primary block" data-act="cloud-on">Activar respaldo automático</button>`
+    }
+    <button class="ghost block sm" data-act="cloud-restore" style="margin-top:6px">Recuperar desde la nube</button>
+  </div>`;
+}
+
+function cloudOnSheet() {
+  openSheet(
+    `<h3>Respaldo automático</h3>
+    <p class="small muted" style="margin-top:0">Elige una contraseña para cifrar tus respaldos (mínimo 10 caracteres; mejor una frase). <b>Si la olvidas, nadie puede recuperar tus datos</b>, ni siquiera nosotros.</p>
+    <form id="cf"><label class="field">Contraseña<input name="p1" type="password" autocomplete="new-password" placeholder="Ej: mi perro come sandia"></label>
+      <label class="field">Repetir contraseña<input name="p2" type="password" autocomplete="new-password"></label>
+      <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button class="primary" id="go">Activar</button></div></form>
+    <div id="done"></div>`,
+    (sheet, close) =>
+      sheet.querySelector('#cf').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const f = new FormData(ev.target);
+        if (String(f.get('p1')).length < 10) return toast('Usa al menos 10 caracteres');
+        if (f.get('p1') !== f.get('p2')) return toast('Las contraseñas no coinciden');
+        const go = sheet.querySelector('#go');
+        go.disabled = true;
+        go.textContent = 'Cifrando y subiendo…';
+        try {
+          const code = await cloud.setupBackup(f.get('p1'));
+          sheet.querySelector('#cf').hidden = true;
+          sheet.querySelector('#done').innerHTML = `<div class="banner">Listo: tus datos ya están respaldados.</div>
+            <p class="small">Tu <b>código de recuperación</b> (guárdalo junto a tu contraseña, por ejemplo en Notas o en tu gestor de contraseñas):</p>
+            <div class="code">${esc(code)}</div>
+            <div class="actions"><button type="button" id="copy">Copiar código</button><button type="button" class="primary" data-close>Listo</button></div>`;
+          sheet.querySelector('#copy').onclick = () => navigator.clipboard?.writeText(code).then(() => toast('Código copiado'));
+          render();
+        } catch {
+          go.disabled = false;
+          go.textContent = 'Activar';
+          toast('No se pudo conectar con el servidor. Revisa tu internet.');
+        }
+      })
+  );
+}
+
+function cloudRestoreSheet() {
+  openSheet(
+    `<h3>Recuperar desde la nube</h3>
+    <p class="small muted" style="margin-top:0">Escribe tu código de recuperación y tu contraseña. Se reemplazan los datos de este teléfono (queda una copia para deshacer).</p>
+    <form id="rf"><label class="field">Código<input name="code" autocomplete="off" autocapitalize="characters" placeholder="GP-XXXXX-XXXXX-XXXXX-XXXXX"></label>
+      <label class="field">Contraseña<input name="p" type="password" autocomplete="current-password"></label>
+      <div class="actions"><button type="button" class="ghost" data-close>Cancelar</button><button class="primary" id="go">Recuperar</button></div></form>`,
+    (sheet, close) =>
+      sheet.querySelector('#rf').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const f = new FormData(ev.target);
+        const go = sheet.querySelector('#go');
+        go.disabled = true;
+        go.textContent = 'Descifrando…';
+        try {
+          await cloud.restoreFromCloud(f.get('code'), f.get('p'));
+          close();
+          window.dispatchEvent(new Event('modules-changed'));
+          toast('Datos recuperados ✅');
+        } catch (e) {
+          go.disabled = false;
+          go.textContent = 'Recuperar';
+          toast(e.status === 404 ? 'No existe un respaldo con ese código' : e.message === 'contraseña' ? 'Contraseña incorrecta' : 'No se pudo conectar con el servidor');
+        }
+      })
+  );
+}
+
 function onChange(e) {
+  if (e.target.dataset.notif) {
+    const k = e.target.dataset.notif;
+    const cur = cloud.notifCfg();
+    const on = e.target.checked;
+    const timeKeys = { habits: '21:00', exercise: '18:00', bills: '09:00' };
+    state.settings.notif = { ...cur, [k]: on ? (timeKeys[k] ? cur[k] || timeKeys[k] : true) : false };
+    save();
+    cloud.syncPush().catch(() => toast('No se pudo actualizar el servidor; se reintentará'));
+    return render();
+  }
+  if (e.target.dataset.ntime) {
+    state.settings.notif = { ...cloud.notifCfg(), [e.target.dataset.ntime]: e.target.value };
+    save();
+    cloud.syncPush().catch(() => {});
+    return toast('Hora actualizada');
+  }
   if (e.target.dataset.sec) return onSecurity(e.target.dataset.sec, e.target.checked, e.target);
   if (e.target.dataset.mod) {
     if (!setModule(e.target.dataset.mod, e.target.checked)) {
@@ -222,6 +359,31 @@ function onChange(e) {
 async function onClick(e) {
   const t = e.target.closest('[data-act]');
   if (!t) return;
+  if (t.dataset.act === 'push-on') {
+    // sin await antes: iPhone exige que el permiso se pida directo desde el toque
+    return cloud
+      .enablePush()
+      .then(() => ((pushOn = true), render(), toast('Notificaciones activadas')))
+      .catch((err) => toast(err.message === 'permiso' ? 'Permiso denegado: actívalo en Ajustes del teléfono → Notificaciones' : 'No se pudo activar. Revisa tu internet.'));
+  }
+  if (t.dataset.act === 'push-off') return cloud.disablePush().then(() => ((pushOn = false), render(), toast('Notificaciones desactivadas')));
+  if (t.dataset.act === 'push-test') return cloud.syncPush(true).then(cloud.testPush).then(() => toast('Aviso enviado: debería llegar en unos segundos')).catch(() => toast('No se pudo enviar'));
+  if (t.dataset.act === 'cloud-on') return cloudOnSheet();
+  if (t.dataset.act === 'cloud-restore') return cloudRestoreSheet();
+  if (t.dataset.act === 'cloud-now') return cloud.uploadBackup().then(() => (toast('Respaldo subido ✅'), render())).catch(() => toast('No se pudo conectar con el servidor'));
+  if (t.dataset.act === 'cloud-code') {
+    const code = cloud.formatCode(cloud.backupCfg().id);
+    return openSheet(`<h3>Tu código de recuperación</h3><div class="code">${esc(code)}</div><p class="small muted">Con este código y tu contraseña recuperas tus datos en otro teléfono.</p><div class="actions"><button id="copy">Copiar</button><button class="primary" data-close>Listo</button></div>`, (sheet) => {
+      sheet.querySelector('#copy').onclick = () => navigator.clipboard?.writeText(code).then(() => toast('Código copiado'));
+    });
+  }
+  if (t.dataset.act === 'cloud-off') {
+    if (!confirm('¿Desactivar el respaldo automático en este teléfono?')) return;
+    const del = confirm('¿Borrar también el respaldo guardado en la nube? (Aceptar = borrar, Cancelar = conservarlo)');
+    await cloud.disableBackup(del);
+    toast('Respaldo automático desactivado');
+    return render();
+  }
   if (t.dataset.act === 'undo') {
     if (!previous || !confirm('Se reemplazarán los datos actuales por la copia guardada. ¿Continuar?')) return;
     await replaceState(previous.data, { label: 'Antes de deshacer', keepLock: true });

@@ -1,7 +1,8 @@
 # Gestión Personal
 
 App móvil (PWA) para iPhone y Android: dieta, calorías, agua, peso, gastos/sueldo y ahorro.
-Sin cuentas ni servidores: cada persona guarda sus datos solo en su teléfono.
+Sin cuentas: cada persona guarda sus datos en su teléfono. Un servidor opcional (Cloudflare, gratis) envía
+notificaciones y guarda respaldos automáticos cifrados, sin poder leer los datos.
 
 ## Módulos
 - **Hoy**: el día completo en una pantalla. Marcas las comidas de tu dieta al comerlas (suman sus calorías), agregas solo lo que comes *fuera de la dieta*, y registras el agua.
@@ -66,6 +67,21 @@ y que la huella de la CSP coincida con el script de `index.html`.
   El bloqueo protege la pantalla; los datos guardados en el teléfono no se cifran con el PIN.
 - `index.html` tiene una Content-Security-Policy que solo permite el código propio de la app.
   Si cambias el `<script>` de `index.html`, actualiza su huella `sha256-…` en la CSP (la prueba te dice cuál).
+
+## Servidor (notificaciones y respaldo automático)
+Carpeta `server/`: un Cloudflare Worker (plan gratuito) con una base D1. El cliente está en `js/cloud.js` y los avisos
+se arman en `sw.js` (`compose()`).
+- **Notificaciones**: el teléfono envía solo su dirección de push, zona horaria y las *horas* de aviso. Cada minuto el
+  Worker manda un aviso vacío a quien le toque; el teléfono lee sus datos y arma el mensaje.
+- **Respaldo**: se cifra en el teléfono (AES-GCM + PBKDF2) con la contraseña del usuario. El servidor guarda el texto
+  cifrado bajo el código de recuperación y solo acepta cambios con un token secreto del teléfono.
+
+Publicar cambios del servidor:
+```bash
+cd server && npx wrangler deploy
+```
+La clave privada VAPID está como secreto (`npx wrangler secret put VAPID_PRIVATE_JWK`) y **nunca va al repo**.
+Si cambias la URL del Worker, actualízala en `js/cloud.js` y en `connect-src` de la CSP de `index.html`.
 
 ## Importante: no publicar otros sitios en esta cuenta
 GitHub Pages sirve todos los repos de la cuenta bajo el mismo origen (`kick-off-s.github.io`). Un navegador comparte el

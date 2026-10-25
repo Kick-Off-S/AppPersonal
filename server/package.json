@@ -1,0 +1,13 @@
+{
+  "name": "gestion-personal-api",
+  "private": true,
+  "type": "module",
+  "description": "Servidor de Gestión Personal (Cloudflare Worker): notificaciones push y respaldo automático cifrado.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "4.152.0"
+  }
+}
