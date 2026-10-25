@@ -2,6 +2,7 @@
 import { state, save, saveNow, exportPayload } from './store.js';
 import { shareFile, toast, todayStr, openSheet } from './util.js';
 import { encryptText } from './security.js';
+import { backupCfg } from './cloud.js';
 
 export const hasData = () =>
   !!(
@@ -28,6 +29,9 @@ export function backupAge() {
 // Recordatorio semanal en "Hoy": si hay datos, pasaron 7 días (o nunca hubo respaldo) y no se pospuso hoy.
 export function backupDue() {
   if (!hasData() || state.settings.backupSnooze === todayStr()) return false;
+  // con respaldo automático en la nube al día no hace falta recordar
+  const cloud = backupCfg();
+  if (cloud && Date.now() - (cloud.last || 0) < 7 * 86400000) return false;
   const age = backupAge();
   return age === null || age >= 7;
 }

@@ -66,3 +66,21 @@ test('servidor: borra respaldos y avisos sin uso con los plazos que informa el a
   assert.ok(!due([{ t: '08:00', d: [1] }], l));
   assert.ok(due([{ t: '08:00', date: '2026-10-26' }], l) && !due([{ t: '08:00', date: '2026-10-27' }], l));
 });
+
+test('hábitos con hora: se ordenan por hora, avisan a esa hora y no si ya están hechos', async () => {
+  const { habitsFor } = await import('../js/views/habits.js');
+  set({
+    settings: { notif: { habits: '21:00', meds: false, bills: false, exercise: false } },
+    habits: { list: [{ id: 'a', name: 'Leer', days: [0, 1, 2, 3, 4, 5, 6] }, { id: 'b', name: 'Vitaminas', time: '08:30', days: [0, 1, 2, 3, 4, 5, 6] }, { id: 'c', name: 'Pesas', time: '07:00', days: [0, 3] }, { id: 'd', name: 'Malo', time: 'xx' }] },
+  });
+  assert.equal(state.habits.list.find((h) => h.id === 'd').time, undefined, 'hora inválida se descarta');
+  assert.deepEqual(habitsFor('2026-10-26').map((h) => h.id), ['c', 'b', 'a', 'd']);
+  const slots = pushSlots();
+  assert.ok(slots.some((x) => x.t === '08:30' && x.d === null) && slots.some((x) => x.t === '07:00' && JSON.stringify(x.d) === '[0,3]'));
+  const st = { settings: { notif: { habits: '21:00', meds: false } }, habits: { list: state.habits.list, done: {} } };
+  const at = (h, m) => [...ctx.compose(st, new Date(2026, 9, 26, h, m))];
+  assert.match(at(8, 32)[0].body, /Vitaminas/);
+  assert.equal(at(9, 0).length, 0, 'fuera de la ventana no avisa');
+  st.habits.done = { '2026-10-26': { b: true } };
+  assert.equal(at(8, 32).length, 0, 'ya marcado: no avisa');
+});

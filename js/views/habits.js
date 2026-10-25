@@ -15,7 +15,9 @@ const SUGGEST = [
 ];
 
 const hb = () => state.habits;
-export const habitsFor = (d) => hb().list.filter((h) => !h.days || h.days.includes(weekdayIndex(d)));
+// Los hábitos con hora van primero, ordenados por hora; los demás quedan en el orden en que se crearon.
+const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99');
+export const habitsFor = (d) => hb().list.filter((h) => !h.days || h.days.includes(weekdayIndex(d))).sort(byTime);
 export const isDone = (d, id) => !!hb().done[d]?.[id];
 
 export function toggleHabit(d, id) {
@@ -91,7 +93,7 @@ function render() {
       ${
         others.length
           ? `<div class="card"><h2>Otros días</h2>${others
-              .map((h) => `<div class="item" data-act="detail" data-id="${h.id}"><span class="emoji">${esc(h.emoji || '✅')}</span><div class="grow"><div class="t">${esc(h.name)}</div><div class="s">${daysTxt(h.days)}</div></div><span class="muted">›</span></div>`)
+              .map((h) => `<div class="item" data-act="detail" data-id="${h.id}"><span class="emoji">${esc(h.emoji || '✅')}</span><div class="grow"><div class="t">${esc(h.name)}</div><div class="s">${daysTxt(h.days)}${h.time ? ` · ⏰ ${h.time}` : ''}</div></div><span class="muted">›</span></div>`)
               .join('')}</div>`
           : ''
       }
@@ -109,7 +111,7 @@ function habitRow(h) {
   const st = streakOf(h, date);
   return `<div class="item habit ${d ? 'done' : ''}">
     <span class="emoji">${esc(h.emoji || '✅')}</span>
-    <div class="grow" data-act="detail" data-id="${h.id}"><div class="t">${esc(h.name)}</div><div class="s">${st >= 1 ? `🔥 ${st} ${st === 1 ? 'día' : 'días'}` : daysTxt(h.days)}</div></div>
+    <div class="grow" data-act="detail" data-id="${h.id}"><div class="t">${esc(h.name)}</div><div class="s">${[h.time ? `⏰ ${h.time}` : '', st >= 1 ? `🔥 ${st} ${st === 1 ? 'día' : 'días'}` : h.time ? '' : daysTxt(h.days)].filter(Boolean).join(' · ')}</div></div>
     <button class="check big ${d ? 'on' : ''}" data-act="tick" data-id="${h.id}" aria-label="Marcar ${esc(h.name)}" aria-pressed="${d}">✓</button></div>`;
 }
 
@@ -143,6 +145,9 @@ function habitSheet(h) {
     <div class="emojis" id="emojis">${EMOJIS.map((e) => `<button type="button" data-e="${e}">${e}</button>`).join('')}</div>
     <label class="field">Días</label>
     <div class="chips" id="days">${DAYS_SHORT.map((l, i) => `<button type="button" class="chip ${days.includes(i) ? 'sel' : ''}" data-i="${i}" aria-label="${DAYS[i]}">${l}</button>`).join('')}</div>
+    <label class="field">Hora (opcional)</label>
+    <div class="row"><input id="time" type="time" value="${h?.time || ''}" style="width:auto;margin-top:0"><button type="button" class="ghost sm" id="notime">Sin hora</button></div>
+    <div class="small muted" style="margin-top:4px">Si eliges una hora, el hábito se ordena por horario y, con las notificaciones activadas, te avisa a esa hora si no lo has marcado.</div>
     <div class="actions">${editing ? '<button type="button" class="danger" id="del">Eliminar</button>' : '<button type="button" class="ghost" data-close>Cancelar</button>'}
       <button class="primary" id="save">Guardar</button></div>`,
     (sheet, close) => {
@@ -162,13 +167,18 @@ function habitSheet(h) {
         else days.push(i);
         b.classList.toggle('sel');
       };
+      $('#notime').onclick = () => ($('#time').value = '');
       $('#save').onclick = () => {
         const name = $('#name').value.trim();
         if (!name) return toast('Ponle un nombre');
         if (!days.length) return toast('Elige al menos un día');
+        const time = /^\d{2}:\d{2}$/.test($('#time').value) ? $('#time').value : '';
         const data = { name, emoji, days: [...days].sort() };
-        if (editing) Object.assign(h, data);
-        else hb().list.push({ id: uid(), ...data });
+        if (editing) {
+          Object.assign(h, data);
+          if (time) h.time = time;
+          else delete h.time;
+        } else hb().list.push({ id: uid(), ...data, ...(time ? { time } : {}) });
         save();
         close();
         render();

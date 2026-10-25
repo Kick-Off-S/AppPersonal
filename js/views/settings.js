@@ -87,8 +87,9 @@ function render() {
     ${notifCard()}
     ${cloudCard()}
 
-    <div class="card"><h2>Respaldo</h2>
+    <div class="card" id="backup-card"><h2>Respaldo</h2>
       <p class="small muted" style="margin-top:0">Tus datos viven solo en este teléfono. Guarda un respaldo para no perderlos si cambias de teléfono, borras la app o limpias Safari.</p>
+      <div class="banner warn small">En iPhone, <b>eliminar el ícono de la pantalla de inicio borra los datos de la app</b> (también al quitarlo para cambiarle el nombre). Antes de hacerlo, activa el respaldo automático o guarda un respaldo.</div>
       ${hasData && stale ? `<div class="banner warn">${age === null ? 'Aún no has hecho ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`}</div>` : ''}
       <div class="small muted">Último respaldo: ${state.settings.lastBackup ? new Date(state.settings.lastBackup).toLocaleString('es-CL') : 'nunca'}</div>
       ${previous ? `<button class="ghost block sm" data-act="undo" style="margin-top:6px">Deshacer: volver a los datos de ${esc(previous.label.toLowerCase())} (${new Date(previous.at).toLocaleString('es-CL')})</button>` : ''}
@@ -228,7 +229,7 @@ function notifCard() {
       pushOn
         ? `<div class="small" style="margin-bottom:6px">Activadas en este teléfono ✅</div>
           ${row('meds', '💊', 'Medicamentos', 'A la hora de cada toma.', false)}
-          ${row('habits', '✅', 'Hábitos pendientes', 'Si te falta alguno del día.', true)}
+          ${row('habits', '✅', 'Hábitos', 'Resumen si te falta alguno del día. Los hábitos con hora te avisan a esa hora.', true)}
           ${row('exercise', '💪', 'Rutina del día', 'Los días que tienes rutina.', true)}
           ${row('water', '💧', 'Agua', 'A las 11, 14, 17 y 20 h, si vas atrasado.', false)}
           ${row('bills', '📅', 'Pagos del día', 'Gastos fijos y cuotas que vencen.', true)}
@@ -284,7 +285,7 @@ function cloudCard() {
   </div>`;
 }
 
-function cloudOnSheet() {
+export function cloudOnSheet() {
   openSheet(
     `<h3>Respaldo automático</h3>
     <p class="small muted" style="margin-top:0">Elige una contraseña para cifrar tus respaldos (mínimo 10 caracteres; mejor una frase). <b>Si la olvidas, nadie puede recuperar tus datos</b>, ni siquiera nosotros.</p>
@@ -322,7 +323,7 @@ function cloudOnSheet() {
   );
 }
 
-function cloudRestoreSheet() {
+export function cloudRestoreSheet() {
   openSheet(
     `<h3>Recuperar desde la nube</h3>
     <p class="small muted" style="margin-top:0">Escribe tu código de recuperación y tu contraseña. Se reemplazan los datos de este teléfono (queda una copia para deshacer).</p>

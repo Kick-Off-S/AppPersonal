@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.7';
+export const APP_VERSION = '4.8';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -41,7 +41,7 @@ export const defaults = () => ({
   // log[fecha] = actividades extra { id, type, mins, kcal, note }
   // snap[fecha][rutina] = { total, mins, kcal } al marcar: el historial no cambia si se edita la rutina
   exercise: { routines: [], done: {}, log: {}, snap: {} },
-  // Hábitos: list { id, name, emoji, days }, done[fecha][hábito] = true
+  // Hábitos: list { id, name, emoji, days, time? 'HH:MM' }, done[fecha][hábito] = true
   habits: { list: [], done: {} },
   // Lista de compras: { id, name, qty, done }
   shopping: { items: [] },
@@ -214,7 +214,11 @@ function normalize(o) {
   });
   for (const k of ['done', 'snap']) if (!isObj(ex[k])) ex[k] = {};
   for (const [d, list] of Object.entries(ex.log)) ex.log[d] = objs(list).map((a) => ((a.mins = pos(a.mins)), (a.kcal = pos(a.kcal)), a));
-  o.habits.list = objs(o.habits.list).map((h) => ((h.days = dayList(h.days) || [0, 1, 2, 3, 4, 5, 6]), h));
+  o.habits.list = objs(o.habits.list).map((h) => {
+    h.days = dayList(h.days) || [0, 1, 2, 3, 4, 5, 6];
+    if (!/^\d{2}:\d{2}$/.test(h.time)) delete h.time; // hora opcional del hábito
+    return h;
+  });
   if (!isObj(o.habits.done)) o.habits.done = {};
   o.shopping.items = objs(o.shopping.items);
   o.meds.list = objs(o.meds.list).map((m) => {

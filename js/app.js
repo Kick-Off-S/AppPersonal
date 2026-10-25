@@ -118,13 +118,15 @@ function drawNotice(home) {
     return ($notice.innerHTML = `<div class="banner warn"><b>No pudimos leer tus datos guardados</b><br>Para no perder nada, la app no guardará cambios por ahora. Cierra la app por completo y vuelve a abrirla.</div>`);
   if (!home || !backupDue()) return ($notice.innerHTML = '');
   const age = backupAge();
-  $notice.innerHTML = `<div class="banner warn"><b>Respalda tus datos</b><br>${age === null ? 'Aún no tienes ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`} Toma 10 segundos y te protege si pierdes o cambias el teléfono.
-    <div class="actions"><button class="ghost sm" data-n="snooze">Ahora no</button><button class="primary sm" data-n="backup">Respaldar</button></div></div>`;
+  $notice.innerHTML = `<div class="banner warn"><b>Respalda tus datos</b><br>${age === null ? 'Aún no tienes ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`} Te protege si pierdes o cambias el teléfono, o si se borra la app.
+    <button class="primary sm block" data-n="cloud" style="margin-top:8px">Activar respaldo automático</button>
+    <div class="actions"><button class="ghost sm" data-n="snooze">Ahora no</button><button class="sm" data-n="backup">Guardar archivo</button></div></div>`;
 }
 $notice.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-n]');
   if (!b) return;
   if (b.dataset.n === 'backup') return backup(() => drawNotice(true));
+  if (b.dataset.n === 'cloud') return openInSettings(settings.cloudOnSheet);
   snoozeBackup();
   drawNotice(true);
 });
@@ -172,6 +174,12 @@ if (!welcome()) whatsNew();
 cloudStartup(); // horas de aviso al día y respaldo automático pendiente
 
 // ---------- bienvenida: elegir módulos la primera vez ----------
+// Va a Ajustes y abre una de sus hojas (p. ej., activar o recuperar el respaldo en la nube).
+function openInSettings(sheet) {
+  if (location.hash !== '#settings') location.hash = '#settings';
+  setTimeout(sheet, 80);
+}
+
 function welcome() {
   if (state.settings.setupDone) return false;
   state.settings.setupDone = true;
@@ -185,8 +193,18 @@ function welcome() {
       (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" checked>
         <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></span></label>`
     ).join('')}</div>
-    <div class="actions"><button class="primary" id="go">Empezar</button></div>`,
+    <div class="actions"><button class="primary" id="go">Empezar</button></div>
+    <div class="banner" style="margin-top:14px"><b>¿Ya usabas la app?</b> Si cambiaste de teléfono o se borró la app, recupera tus datos:
+      <div class="actions"><button class="sm" id="r-cloud">Desde la nube</button><button class="sm" id="r-file">Desde un archivo</button></div></div>`,
     (sheet, close) => {
+      sheet.querySelector('#r-cloud').onclick = () => (close(), openInSettings(settings.cloudRestoreSheet));
+      sheet.querySelector('#r-file').onclick = () => {
+        close();
+        openInSettings(() => {
+          document.getElementById('backup-card')?.scrollIntoView({ block: 'center' });
+          toast('Toca "Restaurar" y elige tu archivo de respaldo');
+        });
+      };
       sheet.querySelector('#mods').onchange = (e) => {
         const m = e.target.dataset.m;
         if (e.target.checked) chosen.add(m);
@@ -219,10 +237,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>🔒 Aviso de privacidad (Más → Ajustes → Privacidad):</b> qué datos se guardan, dónde y cómo borrarlos.</li>
-      <li>Antes de activar las notificaciones o el respaldo en la nube, la app te explica qué se guarda y te pide aceptar.</li>
-      <li>Los datos en la nube que no se usan se borran solos (respaldos: 12 meses; avisos: 90 días) y el servidor no guarda registros de visitas.</li>
-      <li>De la 4.6: notificaciones y respaldo automático cifrado (Más → Ajustes).</li>
+      <li><b>⏰ Hábitos con horario:</b> al crear o editar un hábito puedes ponerle una hora (opcional). Se ordenan por horario y, con las notificaciones activadas, te avisa a esa hora si no lo has marcado.</li>
+      <li><b>🛟 Protección de tus datos:</b> en iPhone, eliminar el ícono de la app (también para cambiarle el nombre) borra sus datos. Activa el <b>respaldo automático</b> en Ajustes para no volver a perder nada.</li>
+      <li>Si abres la app sin datos, ahora puedes recuperarlos directo desde la nube o desde un archivo.</li>
+      <li>De la 4.7: aviso de privacidad (Ajustes → Privacidad).</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

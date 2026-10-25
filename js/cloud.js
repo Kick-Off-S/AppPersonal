@@ -57,6 +57,7 @@ export function pushSlots() {
   const add = (t, d = null, date = null) => t && out.set(`${t}|${d ? d.join('') : ''}|${date || ''}`, { t, d, date });
   if (n.meds) for (const m of state.meds.list) for (const t of m.times) add(t, m.days || null);
   if (n.habits && state.habits.list.length) add(n.habits);
+  if (n.habits) for (const h of state.habits.list) if (h.time) add(h.time, h.days?.length === 7 ? null : h.days);
   if (n.exercise && state.exercise.routines.length) {
     const days = [...new Set(state.exercise.routines.flatMap((r) => r.days))].sort();
     if (days.length) add(n.exercise, days.length === 7 ? null : days);

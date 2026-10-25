@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v29';
+const VERSION = 'gp-v30';
 const SHELL = [
   './',
   'index.html',
@@ -124,7 +124,12 @@ function compose(st, now = new Date()) {
     }
     if (due.length) out.push({ title: '💊 Hora de tu medicamento', body: due.join(', '), url: '#meds' });
   }
-  // hábitos pendientes de hoy
+  // hábitos con hora que aún no se marcan
+  if (n.habits) {
+    const due = (st.habits?.list || []).filter((h) => h.time && (!h.days || h.days.includes(wd)) && toMin(h.time) <= nowMin + 1 && nowMin - toMin(h.time) <= 5 && !st.habits.done?.[today]?.[h.id]);
+    if (due.length) out.push({ title: '⏰ Hora de tu hábito', body: due.map((h) => `${h.emoji || ''} ${h.name}`.trim()).join(', '), url: '#habits' });
+  }
+  // hábitos pendientes de hoy (resumen)
   if (n.habits && near(n.habits)) {
     const left = (st.habits?.list || []).filter((h) => (!h.days || h.days.includes(wd)) && !st.habits.done?.[today]?.[h.id]);
     if (left.length) out.push({ title: '✅ Hábitos de hoy', body: `Te ${left.length === 1 ? 'falta' : 'faltan'} ${left.length}: ${left.map((h) => h.name).join(', ')}`, url: '#habits' });
