@@ -6,6 +6,8 @@ import { esc, openSheet, toast } from './util.js';
 import { applyTheme } from './theme.js';
 import { cloudStartup } from './cloud.js';
 import { privacySheet } from './privacy.js';
+import { decodeLoan } from './loanshare.js';
+import { importLoanSheet } from './views/loans.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
 import * as finance from './views/finance.js';
@@ -135,7 +137,7 @@ $notice.addEventListener('click', async (e) => {
   drawNotice(true);
 });
 
-window.addEventListener('hashchange', show);
+window.addEventListener('hashchange', () => (location.hash.startsWith('#prestamo=') ? openShared() : show()));
 window.addEventListener('save-failed', () => toast('No se pudo guardar: el teléfono no tiene espacio disponible'));
 // "Olvidé mi PIN": borrar los datos de este teléfono (se puede restaurar un respaldo después)
 window.addEventListener('reset-all', async () => {
@@ -173,8 +175,10 @@ applyTheme();
 // con bloqueo activo no se dibuja ningún dato hasta desbloquear
 if (lockEnabled()) await lockScreen();
 drawTabbar();
-show();
-if (!welcome()) whatsNew();
+const shared = location.hash.startsWith('#prestamo=');
+if (shared) openShared();
+else show();
+if (!shared && !welcome()) whatsNew();
 cloudStartup(); // horas de aviso al día y respaldo automático pendiente
 
 // ---------- bienvenida: elegir módulos la primera vez ----------
@@ -236,6 +240,28 @@ function welcomeSheet(chosen) {
   );
 }
 
+// Préstamo compartido por enlace (…#prestamo=…). En iPhone los enlaces abren Safari, no la app
+// instalada (que guarda sus datos aparte): ahí se ofrece copiar el código para pegarlo en la app.
+function openShared() {
+  const link = location.origin + location.pathname + location.hash;
+  const p = decodeLoan(link);
+  history.replaceState(null, '', '#finance');
+  show();
+  if (!p) return toast('El enlace del préstamo no es válido o está incompleto');
+  const inBrowser = !(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true);
+  if (!(inBrowser && isIOSDevice())) return importLoanSheet(p, show);
+  openSheet(
+    `<h3>Préstamo de ${esc(p.from)}</h3>
+    <p class="small" style="margin-top:0">Para guardarlo en tu app instalada:</p>
+    <ol class="small" style="padding-left:20px;margin:6px 0"><li>Toca <b>Copiar</b>.</li><li>Abre la app desde el ícono de tu pantalla de inicio.</li><li>Ve a <b>Gastos → Préstamos → Pegar un préstamo que te compartieron</b>.</li></ol>
+    <div class="actions"><button id="here" class="ghost">Agregarlo aquí</button><button class="primary" id="copy">Copiar</button></div>`,
+    (sheet) => {
+      sheet.querySelector('#copy').onclick = () => navigator.clipboard?.writeText(link).then(() => toast('Copiado: ahora abre la app'), () => toast('No se pudo copiar'));
+      sheet.querySelector('#here').onclick = () => importLoanSheet(p, show);
+    }
+  );
+}
+
 function isIOSDevice() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
@@ -250,10 +276,9 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>💳 Tarjetas (Gastos → Tarjetas):</b> agrega tus tarjetas de crédito o débito y elige con cuál pagaste cada gasto, gasto fijo o préstamo. Verás cuánto llevas en cada una y el cupo disponible.</li>
-      <li><b>🧾 Cuotas explicadas:</b> al anotar una compra en cuotas ves el precio al contado, el total a pagar, el interés y la tasa mensual y anual. Toca una compra en cuotas para ver su calendario completo. Los préstamos muestran lo mismo.</li>
-      <li><b>🏪 Comercios conocidos:</b> escribe "Lider", "Copec", "Enel" o "Netflix" y la categoría se pone sola. Hay más categorías (Combustible, Suscripciones, Telefonía, Mascotas y otras).</li>
-      <li>De la 4.10: meta de peso con IMC, avisos de comidas y privacidad en Más.</li>
+      <li><b>🤝 Préstamos compartidos:</b> en el detalle de un préstamo toca <b>Compartir con…</b> y envíale el enlace a esa persona. Al abrirlo, el préstamo se anota en su app al revés ("Te prestó Ana"), con las cuotas ya pagadas y sus recordatorios. Si lo vuelves a compartir, se actualiza.</li>
+      <li>En iPhone: si el enlace se abre en Safari, copia el código y pégalo en la app en <b>Gastos → Préstamos → Pegar un préstamo que te compartieron</b>.</li>
+      <li>De la 4.11: tarjetas, cuotas explicadas y comercios conocidos.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

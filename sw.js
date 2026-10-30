@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v33';
+const VERSION = 'gp-v34';
 const SHELL = [
   './',
   'index.html',
@@ -29,6 +29,7 @@ const SHELL = [
   'js/installments.js',
   'js/merchants.js',
   'js/cards.js',
+  'js/loanshare.js',
   'js/vendor/zxing.min.js',
   'js/views/today.js',
   'js/views/diet.js',

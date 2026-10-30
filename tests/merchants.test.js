@@ -46,3 +46,24 @@ test('tarjetas: gasto del mes y cupo disponible (compras de este mes + cuotas qu
   assert.equal(m.used, 120000);
   assert.equal(m.avail, 380000);
 });
+
+test('préstamo compartido: el enlace se lee al revés y no acepta datos malos', async () => {
+  const { encodeLoan, shareLink, decodeLoan, mirrorOf } = await import('../js/loanshare.js');
+  const l = { shareId: 'abc123', dir: 'lent', amount: 300000, date: '2026-10-01', n: 6, cuota: 50000, auto: true, start: '2026-11', prepaid: 0, note: 'para el auto' };
+  const link = shareLink('https://kick-off-s.github.io/AppPersonal/', encodeLoan(l, ['2026-11', '2026-12'], 'Ana <b>'));
+  const p = decodeLoan(`Hola Juan, te comparto el préstamo: ${link}`);
+  assert.equal(p.from, 'Ana b', 'sin caracteres peligrosos');
+  const m = mirrorOf(p);
+  assert.equal(m.dir, 'borrowed');
+  assert.equal(m.person, 'Ana b');
+  assert.equal(m.prepaid, 2, 'las 2 primeras cuotas quedan pagadas');
+  assert.equal(m.shareId, 'abc123');
+  // el que pidió prestado comparte: a quien prestó le quedan como cobradas
+  const back = mirrorOf(decodeLoan(encodeLoan({ ...l, dir: 'borrowed' }, ['2027-01'], 'Juan')));
+  assert.equal(back.dir, 'lent');
+  assert.deepEqual(back.received, { '2027-01': true });
+  // basura o datos fuera de rango
+  assert.equal(decodeLoan('https://x/#prestamo=nada'), null);
+  assert.equal(decodeLoan(encodeLoan({ ...l, n: 999 }, [], 'Ana')), null);
+  assert.equal(decodeLoan(encodeLoan(l, [], '')), null);
+});

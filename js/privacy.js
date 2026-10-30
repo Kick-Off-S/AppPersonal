@@ -20,6 +20,7 @@ export function privacySheet(onClose) {
       <h4>Lo que sale del teléfono, solo si tú lo activas</h4>
       <p><b>Notificaciones:</b> la dirección de avisos que entrega Apple o Google, tu zona horaria y las <i>horas</i> de aviso (por ejemplo, 08:00 los lunes). No se envían nombres de medicamentos, montos ni otros datos: el mensaje se arma en tu teléfono.</p>
       <p><b>Respaldo en la nube:</b> una copia de tus datos <b>cifrada en tu teléfono</b> con tu contraseña (AES-256). Nadie puede leerla sin tu contraseña, ni siquiera quien administra la app.</p>
+      <p><b>Préstamos compartidos:</b> si compartes un préstamo, el enlace lleva el monto, las cuotas, las fechas, la nota y tu nombre. Va directo de tu teléfono a la otra persona (por WhatsApp u otra app que elijas): no pasa por el servidor de la app.</p>
       <p><b>Código de barras:</b> al escanear, solo el número del código se consulta en Open Food Facts.</p>
 
       <h4>Dónde se guarda</h4>

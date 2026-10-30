@@ -1,7 +1,7 @@
 import { state, save } from '../store.js';
 import { barChart } from '../charts.js';
 import { exportExpensesCSV } from '../backup.js';
-import { loanMonth, loansCard, loanSheet, loanDetail, toggleCuota, loanById, scheduleOf } from './loans.js';
+import { loanMonth, loansCard, loanSheet, loanDetail, toggleCuota, loanById, scheduleOf, pasteLoanSheet } from './loans.js';
 import { esc, uid, money, num, compact, parseMoney, openSheet, toast, todayStr, monthKey, addMonths, monthLabel, monthShort, shortDate, vibrate } from '../util.js';
 import { breakdown, breakdownHTML } from '../installments.js';
 import { CATEGORIES, categoryFor, merchantNames } from '../merchants.js';
@@ -246,6 +246,7 @@ function onClick(e) {
   else if (act === 'extra-new') return extraSheet();
   else if (act === 'extra-edit') return extraSheet(state.finance.extras.find((x) => x.id === id));
   else if (act === 'loan-new') return loanSheet(null, render);
+  else if (act === 'loan-paste') return pasteLoanSheet(render);
   else if (act === 'loan-open') return loanDetail(loanById(id), render);
   else if (act === 'loan-tick') toggleCuota(loanById(id), ym);
   else if (act === 'save') return toSavingsSheet();
