@@ -1,11 +1,12 @@
 import { state, save } from '../store.js';
 import { barChart } from '../charts.js';
 import { exportExpensesCSV } from '../backup.js';
-import { loanMonth, loansCard, loanSheet, loanDetail, toggleCuota, loanById, scheduleOf, pasteLoanSheet } from './loans.js';
+import { loanMonth, loansCard, loanSheet, loanDetail, toggleCuota, loanById, scheduleOf, pasteLoanSheet, remainingOf } from './loans.js';
+import { openReport } from '../reports.js';
 import { esc, uid, money, num, compact, parseMoney, openSheet, toast, todayStr, monthKey, addMonths, monthLabel, monthShort, shortDate, vibrate } from '../util.js';
 import { breakdown, breakdownHTML } from '../installments.js';
 import { CATEGORIES, categoryFor, merchantNames } from '../merchants.js';
-import { cardsCard, cardDetail, cardSheet, cardSelect, cardById, cardName } from '../cards.js';
+import { cardsCard, cardDetail, cardSheet, cardSelect, cardById, cardName, cards, cardMonth } from '../cards.js';
 
 
 let root;
@@ -232,7 +233,7 @@ function render() {
             .join('')
         : '<div class="empty"><b>Sin gastos</b>Registra tus gastos para ver cómo se reparte tu sueldo.</div>'
     }</div>
-    ${state.finance.expenses.length ? '<button class="ghost block" data-act="csv">Exportar gastos a Excel</button>' : ''}`;
+    ${state.finance.expenses.length ? `<div class="actions"><button data-act="report">📊 Informe del mes</button><button class="ghost" data-act="csv">Exportar a Excel</button></div>` : ''}`;
 }
 
 function onClick(e) {
@@ -265,6 +266,7 @@ function onClick(e) {
   else if (act === 'paid') togglePaid(state.finance.fixed.find((x) => x.id === id));
   else if (act === 'budgets') return budgetSheet();
   else if (act === 'csv') return exportExpensesCSV();
+  else if (act === 'report') return monthReport(ym);
   render();
 }
 
@@ -409,6 +411,85 @@ function fixedSheet(fx) {
       });
     }
   );
+}
+
+// ---------- informe del mes ----------
+function monthReport(m) {
+  const s = summary(m);
+  const list = [...expensesOf(m)].sort((a, b) => a.date.localeCompare(b.date));
+  const byCat = {};
+  for (const e of list) byCat[e.cat] = (byCat[e.cat] || 0) + e.amount;
+  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const fixed = fixedFor(m);
+  const groups = installmentGroups(m);
+  const loans = state.finance.loans.filter((l) => remainingOf(l).count || loanMonth(m).incomes.length);
+  const row = (k, v, cls = '') => `<tr><td>${k}</td><td class="${cls}">${v}</td></tr>`;
+  const body = `<h1>Informe de ${monthLabel(m).toLowerCase()}</h1>
+    <div class="sub">${state.settings.name ? `${esc(state.settings.name)} · ` : ''}generado el ${shortDate(todayStr())} ${todayStr().slice(0, 4)}</div>
+    <div class="kv">
+      <div><b>${money(s.income)}</b><span>Ingresos</span></div>
+      <div><b>${money(s.spent)}</b><span>Gastado</span></div>
+      <div><b>${money(s.pending)}</b><span>Por pagar (fijos y cuotas)</span></div>
+      <div><b>${money(s.moved)}</b><span>Enviado a ahorro</span></div>
+      <div><b class="${s.avail < 0 ? 'neg' : 'pos'}">${money(s.avail)}</b><span>Disponible</span></div>
+    </div>
+    <h2>Ingresos</h2><table><tbody>
+      ${row(`Sueldo${s.inherited ? ' (del mes anterior)' : ''}`, money(s.salary))}
+      ${s.extras ? row('Otros ingresos', money(s.extras)) : ''}
+      ${s.withdrawn ? row('Retiros de ahorro usados', money(s.withdrawn)) : ''}
+      ${s.lm.borrowedIn ? row('Préstamos recibidos', money(s.lm.borrowedIn)) : ''}
+      ${s.lm.repaidIn ? row('Cuotas que te devolvieron', money(s.lm.repaidIn)) : ''}
+    </tbody><tfoot>${row('Total', money(s.income))}</tfoot></table>
+    ${
+      cats.length
+        ? `<h2>Gastos por categoría</h2><table><thead><tr><th>Categoría</th><th>Gastado</th><th>%</th><th>Tope</th></tr></thead><tbody>${cats
+            .map(([c, v]) => {
+              const b = budgets()[c];
+              return `<tr><td>${esc(c)}</td><td>${money(v)}</td><td>${num((v / (s.spent || 1)) * 100)} %</td><td class="${b && v > b ? 'neg' : ''}">${b ? `${money(b)}${v > b ? ' (pasado)' : ''}` : '—'}</td></tr>`;
+            })
+            .join('')}</tbody><tfoot><tr><td>Total</td><td>${money(s.spent)}</td><td></td><td></td></tr></tfoot></table>`
+        : ''
+    }
+    ${
+      fixed.length
+        ? `<h2>Gastos fijos</h2><table><thead><tr><th>Gasto</th><th>Día</th><th>Monto</th><th>Estado</th></tr></thead><tbody>${fixed
+            .map((f) => `<tr><td>${esc(f.name)}</td><td>${f.day}</td><td>${money(f.amount)}</td><td class="${paidOf(f, m) ? 'pos' : 'neg'}">${paidOf(f, m) ? 'Pagado' : 'Pendiente'}</td></tr>`)
+            .join('')}</tbody></table>`
+        : ''
+    }
+    ${
+      groups.length
+        ? `<h2>Compras en cuotas</h2><table><thead><tr><th>Compra</th><th>Cuota del mes</th><th>Quedan después</th><th>Termina</th></tr></thead><tbody>${groups
+            .map((g) => `<tr><td>${esc(g.first.desc || g.first.cat)}</td><td>${g.cur ? `${g.cur.cuota[0]}/${g.n} · ${money(g.cur.amount)}` : '—'}</td><td>${g.leftN ? `${g.leftN} · ${money(g.left)}` : '—'}</td><td>${monthShort(g.end)} ${g.end.slice(0, 4)}</td></tr>`)
+            .join('')}</tbody></table>`
+        : ''
+    }
+    ${
+      cards().length
+        ? `<h2>Tarjetas</h2><table><thead><tr><th>Tarjeta</th><th>Gastado en el mes</th><th>Cupo disponible</th></tr></thead><tbody>${cards()
+            .map((c) => {
+              const x = cardMonth(c, m);
+              return `<tr><td>${esc(c.name)}</td><td>${money(x.spent)}</td><td>${x.avail != null ? `${money(x.avail)} de ${money(c.limit)}` : '—'}</td></tr>`;
+            })
+            .join('')}</tbody></table>`
+        : ''
+    }
+    ${
+      loans.length
+        ? `<h2>Préstamos</h2><table><thead><tr><th>Préstamo</th><th>Cuota</th><th>Falta</th></tr></thead><tbody>${loans
+            .map((l) => `<tr><td>${l.dir === 'lent' ? `Le prestaste a ${esc(l.person)}` : `Te prestó ${esc(l.person)}`}</td><td>${money(l.cuota)}</td><td class="${l.dir === 'lent' ? 'pos' : 'neg'}">${money(remainingOf(l).amount)} (${remainingOf(l).count} cuotas)</td></tr>`)
+            .join('')}</tbody></table>`
+        : ''
+    }
+    ${
+      list.length
+        ? `<h2>Detalle de gastos</h2><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Categoría</th><th>Monto</th></tr></thead><tbody>${list
+            .map((e) => `<tr><td>${shortDate(e.date)}</td><td class="txt">${esc(e.desc || '—')}${e.cuota ? ` (cuota ${e.cuota[0]}/${e.cuota[1]})` : ''}${cardName(e.cardId) ? ` · ${esc(cardName(e.cardId))}` : ''}</td><td>${esc(e.cat)}</td><td>${money(e.amount)}</td></tr>`)
+            .join('')}</tbody></table>`
+        : ''
+    }
+    <div class="foot">Generado con Gestión Personal a partir de lo registrado en la app.</div>`;
+  openReport({ title: `Informe ${monthLabel(m)}`, body, file: `informe-gastos-${m}.html` });
 }
 
 // Al escribir un comercio conocido (o uno que ya usaste), la categoría se completa sola. Si el usuario

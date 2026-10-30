@@ -65,7 +65,7 @@ export function burnedFor(d) {
   for (const a of ex().log[d] || []) k += a.kcal || 0;
   return Math.round(k);
 }
-const minsFor = (d) => {
+export const minsFor = (d) => {
   let m = 0;
   for (const r of routinesFor(d)) {
     const { n, total } = routineProgress(d, r);

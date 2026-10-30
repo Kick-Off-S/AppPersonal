@@ -7,6 +7,7 @@ import { askBackupPassword, lockEnabled, setPin, checkPin, pinPad, biometricAvai
 import { openSheet } from '../util.js';
 import { PALETTES, MODES, setTheme } from '../theme.js';
 import { privacySheet } from '../privacy.js';
+import { historySheet } from '../changelog.js';
 
 let root;
 
@@ -109,7 +110,7 @@ function render() {
 
     <div class="card"><h2>Zona de riesgo</h2>
       <button class="danger block" data-act="reset">Borrar todos mis datos</button></div>
-    <p class="small muted" style="text-align:center">Gestión Personal v${APP_VERSION} · Funciona sin internet · Sin cuentas · La nube es opcional</p>`;
+    <p class="small muted" style="text-align:center">Gestión Personal v${APP_VERSION} · <a href="#" data-act="history">Historial de versiones</a><br>Funciona sin internet · Sin cuentas · La nube es opcional</p>`;
 }
 
 // PIN nuevo (dos veces). Resuelve con el PIN o null.
@@ -392,6 +393,7 @@ async function onClick(e) {
   if (!t) return;
   if (t.dataset.act === 'push-on') return pushConsentSheet();
   if (t.dataset.act === 'privacy') return privacySheet();
+  if (t.dataset.act === 'history') return e.preventDefault(), historySheet(APP_VERSION);
   if (t.dataset.act === 'push-off') return cloud.disablePush().then(() => ((pushOn = false), render(), toast('Notificaciones desactivadas')));
   if (t.dataset.act === 'push-test') return cloud.syncPush(true).then(cloud.testPush).then(() => toast('Aviso enviado: debería llegar en unos segundos')).catch(() => toast('No se pudo enviar'));
   if (t.dataset.act === 'cloud-on') return cloudOnSheet();

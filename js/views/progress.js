@@ -3,6 +3,7 @@ import { dayTotals, dayMacros, dietStreak, waterOf } from '../calc.js';
 import { barChart, lineChart } from '../charts.js';
 import { esc, uid, num, parseQty, openSheet, toast, todayStr, addDays, lastDays, weekdayShort, shortDate, dayLabel, parseDate } from '../util.js';
 import { bmiInfo, weightAdvice } from '../nutrition.js';
+import { nutritionReportSheet } from '../reports.js';
 
 let root;
 let range = 30; // días del gráfico de peso (0 = todo)
@@ -75,6 +76,7 @@ function render() {
   const diff = first && last ? last.kg - first.kg : 0;
 
   root.innerHTML = `
+    <button class="block" data-act="report" style="margin-bottom:12px">📄 Informe para tu nutricionista</button>
     <div class="card"><h2>Peso</h2>
       ${
         last
@@ -138,6 +140,7 @@ function onClick(e) {
   } else if (act === 'addw') weightSheet();
   else if (act === 'editw') weightSheet(state.weight.find((w) => w.id === id));
   else if (act === 'goalw') (e.preventDefault(), goalSheet());
+  else if (act === 'report') nutritionReportSheet();
 }
 
 const GUIDE = 'Es una guía con fórmulas generales (IMC de la OMS; desde los 65 años, la referencia del MINSAL). No reemplaza a tu médico o nutricionista.';
