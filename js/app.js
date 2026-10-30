@@ -8,6 +8,7 @@ import { cloudStartup } from './cloud.js';
 import { privacySheet } from './privacy.js';
 import { decodeLoan } from './loanshare.js';
 import { CHANGELOG, newsHTML, historySheet } from './changelog.js';
+import { termsGate, termsSheet } from './terms.js';
 import { importLoanSheet } from './views/loans.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
@@ -21,6 +22,7 @@ import * as shopping from './views/shopping.js';
 import * as meds from './views/meds.js';
 
 const ICONS = {
+  terms: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
   privacy: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-3.5"/>',
   today: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M9 15l2 2 4-4"/>',
@@ -64,6 +66,7 @@ const moreView = {
       e.preventDefault();
       if (a.dataset.act === 'privacy') privacySheet();
       if (a.dataset.act === 'history') historySheet(APP_VERSION);
+      if (a.dataset.act === 'terms') termsSheet();
     };
     el.innerHTML = `<div class="card more">${moreTabs()
       .map(
@@ -73,6 +76,8 @@ const moreView = {
       .join('')}
       <a class="item" href="#" data-act="privacy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.privacy}</svg>
         <div class="grow t">Privacidad y tus datos</div><span class="muted">›</span></a>
+      <a class="item" href="#" data-act="terms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.terms}</svg>
+        <div class="grow t">Términos y condiciones</div><span class="muted">›</span></a>
       <a class="item" href="#" data-act="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.history}</svg>
         <div class="grow t">Historial de versiones</div><span class="muted">v${APP_VERSION} ›</span></a></div>
       <p class="small muted" style="text-align:center">Elige qué módulos ver en <a href="#settings">Ajustes</a>.</p>`;
@@ -184,6 +189,7 @@ await load();
 applyTheme();
 // con bloqueo activo no se dibuja ningún dato hasta desbloquear
 if (lockEnabled()) await lockScreen();
+await termsGate(); // sin aceptar los términos no se usa la app (también al cambiar de versión)
 drawTabbar();
 const shared = location.hash.startsWith('#prestamo=');
 if (shared) openShared();

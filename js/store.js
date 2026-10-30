@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.13';
+export const APP_VERSION = '4.14';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -173,6 +173,7 @@ function normalize(o) {
   st.macroGoals = isObj(st.macroGoals) ? { p: pos(st.macroGoals.p), c: pos(st.macroGoals.c), f: pos(st.macroGoals.f) } : null;
   if (st.profile !== undefined && !isObj(st.profile)) st.profile = null;
   if (st.body !== undefined) st.body = isObj(st.body) ? { height: pos(st.body.height) <= 250 ? pos(st.body.height) : 0, age: pos(st.body.age) <= 120 ? Math.round(pos(st.body.age)) : 0 } : null;
+  st.terms = isObj(st.terms) && typeof st.terms.v === 'string' ? { v: st.terms.v.slice(0, 10), privacy: String(st.terms.privacy || '').slice(0, 20), at: String(st.terms.at || '').slice(0, 30) } : null;
   st.goalDate = typeof st.goalDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(st.goalDate) ? st.goalDate : '';
   if (st.notif !== undefined) {
     const n = isObj(st.notif) ? st.notif : {};
@@ -469,8 +470,13 @@ export async function replaceState(data, { label = '', keepLock = false } = {}) 
   if (label) await keepPrevious(label);
   diag(`datos reemplazados: ${label || 'borrar todo'}`);
   const lock = state.settings?.lock;
+  const terms = state.settings?.terms;
   state = withDefaults(data);
-  if (keepLock) state.settings.lock = lock;
+  if (keepLock) {
+    state.settings.lock = lock;
+    // al restaurar, la aceptación de los términos es de quien usa este teléfono
+    if (terms?.v && (!state.settings.terms || state.settings.terms.at < terms.at)) state.settings.terms = terms;
+  }
   readOnly = false; // el usuario eligió estos datos explícitamente
   await flush();
   return state;

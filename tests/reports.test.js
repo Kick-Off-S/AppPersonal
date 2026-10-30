@@ -40,3 +40,19 @@ test('informe nutricional: promedios, cambio de peso y textos escapados', async 
   assert.match(html, /Ana &lt;script&gt;/);
   assert.match(html, /IMC/);
 });
+
+test('términos: la aceptación se guarda, se valida y se conserva al restaurar un respaldo', async () => {
+  const { TERMS_VERSION, accepted, termsHTML } = await import('../js/terms.js');
+  const store = await import('../js/store.js');
+  await store.replaceState({});
+  assert.equal(accepted(), false, 'sin aceptar');
+  store.state.settings.terms = { v: TERMS_VERSION, privacy: 'x', at: '2026-10-30T12:00:00.000Z' };
+  assert.equal(accepted(), true);
+  // restaurar un respaldo antiguo (sin aceptación) mantiene la de este teléfono
+  await store.replaceState({ settings: { name: 'Otro' } }, { keepLock: true });
+  assert.equal(accepted(), true);
+  // basura en el respaldo se descarta
+  assert.equal(store.withDefaults({ settings: { terms: 'sí' } }).settings.terms, null);
+  assert.match(termsHTML(), /No es consejo profesional/);
+  assert.match(termsHTML(), /131/);
+});

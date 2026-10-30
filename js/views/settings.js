@@ -8,6 +8,7 @@ import { openSheet } from '../util.js';
 import { PALETTES, MODES, setTheme } from '../theme.js';
 import { privacySheet } from '../privacy.js';
 import { historySheet } from '../changelog.js';
+import { termsSheet } from '../terms.js';
 
 let root;
 
@@ -83,6 +84,7 @@ function render() {
           : ''
       }
       <button class="ghost block sm" data-act="privacy" style="margin-top:8px">Aviso de privacidad: qué datos se guardan y dónde</button>
+      <button class="ghost block sm" data-act="terms">Términos y condiciones${state.settings.terms?.at ? ` · aceptados el ${new Date(state.settings.terms.at).toLocaleDateString('es-CL')}` : ''}</button>
     </div>
 
     ${notifCard()}
@@ -394,6 +396,7 @@ async function onClick(e) {
   if (t.dataset.act === 'push-on') return pushConsentSheet();
   if (t.dataset.act === 'privacy') return privacySheet();
   if (t.dataset.act === 'history') return e.preventDefault(), historySheet(APP_VERSION);
+  if (t.dataset.act === 'terms') return termsSheet();
   if (t.dataset.act === 'push-off') return cloud.disablePush().then(() => ((pushOn = false), render(), toast('Notificaciones desactivadas')));
   if (t.dataset.act === 'push-test') return cloud.syncPush(true).then(cloud.testPush).then(() => toast('Aviso enviado: debería llegar en unos segundos')).catch(() => toast('No se pudo enviar'));
   if (t.dataset.act === 'cloud-on') return cloudOnSheet();

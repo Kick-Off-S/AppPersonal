@@ -460,3 +460,9 @@ body.report-open { overflow: hidden; }
   body.report-open #report-root { position: static; overflow: visible; }
   .report-bar { display: none !important; }
 }
+/* términos: pantalla obligatoria (bajo las hojas para poder abrir el aviso de privacidad encima) */
+#terms-gate { position: fixed; inset: 0; z-index: 18; background: var(--bg); overflow-y: auto; padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) max(16px, env(safe-area-inset-left, 0px)); }
+#terms-gate .tg-box { max-width: 560px; margin: 0 auto; background: var(--card); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); }
+#terms-gate h2 { margin: 0 0 6px; font-size: 21px; text-transform: none; letter-spacing: 0; color: var(--text); }
+#terms-gate .tg-text { max-height: 46vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px; margin: 8px 0; -webkit-overflow-scrolling: touch; }
+#terms-gate button:disabled { opacity: 0.45; }

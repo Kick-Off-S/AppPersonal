@@ -6,6 +6,16 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.14',
+    date: '2026-10-30',
+    title: 'Términos y condiciones',
+    items: [
+      '<b>📜 Términos y condiciones:</b> para seguir usando la app hay que leerlos y aceptarlos (una sola vez, y de nuevo solo si cambian).',
+      'Explican qué es la app, que sus cálculos y recordatorios son una guía y no reemplazan a un profesional, y cómo cuidar tus datos.',
+      'Puedes volver a leerlos en Más → Términos y condiciones o en Ajustes → Privacidad, donde también ves cuándo los aceptaste.',
+    ],
+  },
+  {
     v: '4.13',
     date: '2026-10-30',
     title: 'Informes e historial de versiones',
