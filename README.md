@@ -100,4 +100,7 @@ cuenta**, o usa un dominio propio para la app.
 - `js/backup.js`: respaldo `.json`, recordatorio semanal y exportación de gastos `.csv`.
 - `js/theme.js`: paletas de colores y modo claro/oscuro (Ajustes → Apariencia). Los colores viven en `styles.css` (`--p` / `--pd` por paleta).
 - `js/modules.js`: módulos que cada persona activa en Ajustes (Dieta y salud, Finanzas, Ejercicio, Hábitos, Compras).
+- `js/cards.js`: tarjetas de crédito o débito (cardId en gastos, fijos y préstamos) con gasto del mes y cupo disponible.
+- `js/installments.js`: desglose de cuotas (total, interés y tasa equivalente) para compras y préstamos.
+- `js/merchants.js`: categorías de gasto y comercios chilenos comunes; completa la categoría al escribir el detalle.
 - `js/views/*.js`: un archivo por pestaña. Para agregar un módulo: sumarlo en `js/modules.js`, crear sus vistas, registrar sus pestañas (con `module`) en `js/app.js` y sus archivos en `sw.js`.

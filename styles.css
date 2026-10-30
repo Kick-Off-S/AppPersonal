@@ -438,3 +438,9 @@ body.privacy > :not(#lock) { filter: blur(24px); }
 .pill-warn { background: color-mix(in srgb, var(--warn) 15%, var(--card)); color: var(--warn); }
 .pill-bad { background: var(--danger-soft); color: var(--danger); }
 .privacy-intro { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--primary) 8%, var(--card)); line-height: 1.45; }
+/* desglose de cuotas */
+.breakdown { display: grid; gap: 4px; margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--primary) 6%, var(--card)); font-size: 14px; font-variant-numeric: tabular-nums; }
+.cuota-list .item .s { font-size: 12.5px; }
+.cuota-list .tag { font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: color-mix(in srgb, var(--muted) 14%, var(--card)); color: var(--muted); }
+.cuota-list .tag.now { background: color-mix(in srgb, var(--warn) 16%, var(--card)); color: var(--warn); }
+.cuota-list .tag.ok { background: color-mix(in srgb, var(--ok) 15%, var(--card)); color: var(--ok); }

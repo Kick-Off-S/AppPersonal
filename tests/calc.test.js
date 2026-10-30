@@ -31,3 +31,18 @@ test('historial: cambiar o reemplazar el plan no altera las calorías de días p
   assert.equal(dayTotals(PAST).mealsDone, 1);
   assert.equal(dayMacros(PAST).p, 40);
 });
+
+test('cuotas: interés, tasa equivalente y plazo', async () => {
+  const { breakdown, monthlyRate } = await import('../js/installments.js');
+  // 6 cuotas de $20.000 por algo de $110.000: interés $10.000 (9,1 %), tasa ~2,5 % mensual
+  const b = breakdown({ price: 110000, cuota: 20000, n: 6, firstYm: '2026-11' });
+  assert.equal(b.total, 120000);
+  assert.equal(b.interest, 10000);
+  assert.equal(b.lastYm, '2027-04');
+  assert.ok(Math.abs(b.rate - 0.0254) < 0.0003, String(b.rate));
+  // sin interés
+  assert.equal(monthlyRate(120000, 20000, 6), 0);
+  assert.equal(breakdown({ price: 120000, cuota: 20000, n: 6, firstYm: '2026-11' }).interest, 0);
+  // precio desconocido (compra antigua): no se inventa el interés
+  assert.equal(breakdown({ price: null, cuota: 20000, n: 6, firstYm: '2026-11' }).interest, null);
+});

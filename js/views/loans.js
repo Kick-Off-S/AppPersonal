@@ -5,6 +5,8 @@
 //                  (categoría Deudas / Créditos), y las impagas del mes cuentan como "por pagar".
 import { state, save } from '../store.js';
 import { esc, uid, money, num, parseMoney, openSheet, toast, todayStr, monthKey, addMonths, monthLabel, monthShort, vibrate } from '../util.js';
+import { breakdown, breakdownHTML } from '../installments.js';
+import { cardSelect, cardById } from '../cards.js';
 
 const loans = () => state.finance.loans;
 const pad = (n) => String(n).padStart(2, '0');
@@ -57,7 +59,7 @@ export function toggleCuota(l, ym) {
     if (ex) state.finance.expenses = state.finance.expenses.filter((e) => e !== ex);
     else {
       const date = ym === monthKey(todayStr()) ? todayStr() : `${ym}-${pad(Math.min(+l.date.slice(8, 10) || 1, 28))}`;
-      state.finance.expenses.push({ id: uid(), loanId: l.id, cuotaYm: ym, amount: cuotaOf(l, c.i), cat: 'Deudas / Créditos', desc: `Cuota ${c.i}/${l.n} préstamo de ${l.person}`, date });
+      state.finance.expenses.push({ id: uid(), loanId: l.id, cuotaYm: ym, amount: cuotaOf(l, c.i), cat: 'Deudas / Créditos', desc: `Cuota ${c.i}/${l.n} préstamo de ${l.person}`, date, ...(cardById(l.cardId) ? { cardId: l.cardId } : {}) });
       vibrate();
     }
   }
@@ -107,8 +109,9 @@ export function loanSheet(l, onDone) {
       <div class="two"><label class="field">N° de cuotas<input name="n" inputmode="numeric" required value="${l?.n || ''}" placeholder="Ej: 6 (1 = un pago)"></label>
         <label class="field">Valor de cada cuota<input name="cuota" inputmode="numeric" value="${l?.cuota || ''}" placeholder="Se calcula solo"></label></div>
       <label class="field">Primera cuota<input name="start" type="month" required value="${l?.start || nextMonth}"></label>
-      <div class="small muted" id="calc" style="margin-top:8px"></div>
+      <div id="calc"></div>
       <label class="field">Cuotas ya ${'<span id="pp-l">cobradas</span>'} antes de anotarlo (opcional)<input name="prepaid" inputmode="numeric" value="${l?.prepaid || ''}" placeholder="Ej: 0"></label>
+      <div id="card-w">${cardSelect(l?.cardId, 'Las cuotas se pagan con')}</div>
       <label class="cuotas"><input type="checkbox" name="counted" ${l ? (l.counted ? 'checked' : '') : 'checked'}> <span id="counted-l">Descontar el monto del disponible del mes del préstamo</span></label>
       <label class="field">Nota (opcional)<input name="note" maxlength="60" value="${esc(l?.note)}" placeholder="Ej: para el auto, sin interés" autocomplete="off"></label>
       <div class="actions">${editing ? '<button type="button" class="danger" id="del">Eliminar</button>' : '<button type="button" class="ghost" data-close>Cancelar</button>'}<button class="primary">Guardar</button></div>
@@ -120,6 +123,7 @@ export function loanSheet(l, onDone) {
         sheet.querySelectorAll('#dir button').forEach((b) => b.classList.toggle('sel', b.dataset.d === dir));
         $('#who-l').textContent = dir === 'lent' ? '¿A quién le prestaste?' : '¿Quién te prestó?';
         $('#pp-l').textContent = dir === 'lent' ? 'cobradas' : 'pagadas';
+        $('#card-w').hidden = dir === 'lent';
         $('#counted-l').textContent = dir === 'lent' ? 'Descontar el monto del disponible del mes del préstamo' : 'Sumar el monto a los ingresos del mes del préstamo';
         calc();
       };
@@ -130,9 +134,10 @@ export function loanSheet(l, onDone) {
         const cuota = parseMoney(form.elements.cuota.value) || (amount && n ? Math.round(amount / n) : 0);
         if (!amount || !n) return ($('#calc').textContent = '');
         const total = auto ? amount : cuota * n;
-        const extra = total - amount;
-        const end = addMonths(form.elements.start.value || nextMonth, n - 1);
-        $('#calc').innerHTML = `${n} cuota${n > 1 ? 's' : ''} de <b>${money(cuota)}</b> · total ${money(total)}${extra > 0 ? ` (interés ${money(extra)})` : ''} · ${n > 1 ? `de ${monthShort(form.elements.start.value || nextMonth)} a ${monthShort(end)} ${end.slice(0, 4)}` : monthLabel(end)}`;
+        $('#calc').innerHTML = breakdownHTML(
+          breakdown({ price: amount, cuota, n, total, firstYm: form.elements.start.value || nextMonth }),
+          dir === 'lent' ? { priceLabel: 'Prestas', totalLabel: 'Te devuelven en total' } : { priceLabel: 'Te prestan', totalLabel: 'Devuelves en total' }
+        );
       };
       $('#dir').onclick = (e) => {
         const b = e.target.closest('button');
@@ -159,11 +164,14 @@ export function loanSheet(l, onDone) {
           counted: !!f.get('counted'),
           note: f.get('note').trim(),
         };
+        const cardId = dir === 'borrowed' ? f.get('cardId') || '' : '';
         if (!data.person) return toast('¿Con quién es el préstamo?');
         if (editing) {
           // si cambió de dirección, las cuotas pagadas como gasto ya no aplican
           if (l.dir !== dir) state.finance.expenses = state.finance.expenses.filter((e) => e.loanId !== l.id);
           Object.assign(l, data);
+          if (cardId) l.cardId = cardId;
+          else delete l.cardId;
           for (const e of state.finance.expenses.filter((x) => x.loanId === l.id)) {
             const c = scheduleOf(l).find((x) => x.ym === e.cuotaYm);
             if (c) e.amount = cuotaOf(l, c.i);
@@ -176,7 +184,7 @@ export function loanSheet(l, onDone) {
               state.finance.expenses = state.finance.expenses.filter((e) => !stray.includes(e));
             else for (const e of stray) delete e.loanId, delete e.cuotaYm;
           }
-        } else loans().push({ id: uid(), received: {}, ...data });
+        } else loans().push({ id: uid(), received: {}, ...data, ...(cardId ? { cardId } : {}) });
         save();
         close();
         toast('Préstamo guardado');
@@ -198,7 +206,11 @@ export function loanSheet(l, onDone) {
 export function loanDetail(l, onDone) {
   openSheet(
     `<div class="row between"><h3>${esc(who(l))}</h3><button class="sm" id="edit">Editar</button></div>
-    <p class="muted small" style="margin-top:0">${money(l.amount)} el ${l.date.split('-').reverse().join('-')} · ${l.n} cuota${l.n > 1 ? 's' : ''} de ${money(l.cuota)}${l.note ? ' · ' + esc(l.note) : ''}</p>
+    <p class="muted small" style="margin-top:0">${money(l.amount)} el ${l.date.split('-').reverse().join('-')}${l.note ? ' · ' + esc(l.note) : ''}</p>
+    ${breakdownHTML(
+      breakdown({ price: l.amount, cuota: l.cuota, n: l.n, total: scheduleOf(l).reduce((a, c) => a + cuotaOf(l, c.i), 0), firstYm: l.start }),
+      l.dir === 'lent' ? { priceLabel: 'Prestaste', totalLabel: 'Te devuelven en total' } : { priceLabel: 'Te prestaron', totalLabel: 'Devuelves en total' }
+    )}
     <div id="sum"></div>
     <div id="sched" class="ing"></div>
     <div class="actions"><button class="primary" data-close>Listo</button></div>`,

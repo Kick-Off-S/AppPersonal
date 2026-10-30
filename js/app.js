@@ -250,10 +250,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>⚖️ Meta de peso realista (Progreso → Meta de peso):</b> calcula tu IMC, el rango de peso saludable para tu estatura y una meta sugerida. Te dice en cuántas semanas la lograrías a un ritmo sano y si la fecha que elegiste es realista.</li>
-      <li><b>🍽️ Avisos de comidas:</b> con las notificaciones activadas, te avisa a la hora de cada comida de tu plan si aún no la marcas (se puede apagar en Ajustes → Notificaciones).</li>
-      <li><b>🔒 Privacidad a mano:</b> en Más → Privacidad y tus datos ves cómo se tratan tus datos.</li>
-      <li>De la 4.9: copia de seguridad interna de tus datos y diagnóstico.</li>
+      <li><b>💳 Tarjetas (Gastos → Tarjetas):</b> agrega tus tarjetas de crédito o débito y elige con cuál pagaste cada gasto, gasto fijo o préstamo. Verás cuánto llevas en cada una y el cupo disponible.</li>
+      <li><b>🧾 Cuotas explicadas:</b> al anotar una compra en cuotas ves el precio al contado, el total a pagar, el interés y la tasa mensual y anual. Toca una compra en cuotas para ver su calendario completo. Los préstamos muestran lo mismo.</li>
+      <li><b>🏪 Comercios conocidos:</b> escribe "Lider", "Copec", "Enel" o "Netflix" y la categoría se pone sola. Hay más categorías (Combustible, Suscripciones, Telefonía, Mascotas y otras).</li>
+      <li>De la 4.10: meta de peso con IMC, avisos de comidas y privacidad en Más.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

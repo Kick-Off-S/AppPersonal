@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.10';
+export const APP_VERSION = '4.11';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -30,7 +30,8 @@ export const defaults = () => ({
   // loans: préstamos { id, dir: 'lent' (presté) | 'borrowed' (me prestaron), person, amount, date, counted,
   //        n, cuota, start: 'YYYY-MM', prepaid, received: { 'YYYY-MM': true }, note }
   //        las cuotas pagadas de lo que me prestaron se registran como gastos con loanId y cuotaYm
-  finance: { income: {}, expenses: [], fixed: [], budgets: {}, salaryMode: 'fixed', extras: [], loans: [] }, // income['YYYY-MM'] = sueldo líquido
+  // cards: tarjetas { id, name, kind: 'credit' | 'debit', limit (cupo), payDay }; gastos, fijos y préstamos llevan cardId
+  finance: { income: {}, expenses: [], fixed: [], budgets: {}, salaryMode: 'fixed', extras: [], loans: [], cards: [] }, // income['YYYY-MM'] = sueldo líquido
   // Cuentas de ahorro: { id, name, kind, rate? (% anual) }
   savingsAccounts: [{ id: 'general', name: 'Ahorro general', kind: 'cuenta' }],
   // type: 'in' aporte | 'out' retiro | 'int' interés o rentabilidad (amount con signo: + ganancia, − pérdida)
@@ -201,6 +202,7 @@ function normalize(o) {
     if (!isObj(l.received)) l.received = {};
     return l;
   });
+  fin.cards = objs(fin.cards).map((c) => ({ ...c, kind: c.kind === 'debit' ? 'debit' : 'credit', limit: pos(c.limit), payDay: Math.min(31, Math.round(pos(c.payDay))) }));
   o.savings = objs(o.savings).map((m) => ((m.amount = m.type === 'int' ? n0(m.amount) : pos(m.amount)), m));
   o.savingsGoal = pos(o.savingsGoal);
   const ex = o.exercise;
@@ -247,7 +249,7 @@ export function withDefaults(data) {
   out.diet.done = (d.diet && d.diet.done) || {};
   out.finance = { ...base.finance, ...(d.finance || {}) };
   for (const k of ['foods', 'savings', 'weight']) if (!Array.isArray(out[k])) out[k] = [];
-  for (const k of ['expenses', 'fixed', 'extras', 'loans']) if (!Array.isArray(out.finance[k])) out.finance[k] = [];
+  for (const k of ['expenses', 'fixed', 'extras', 'loans', 'cards']) if (!Array.isArray(out.finance[k])) out.finance[k] = [];
   for (const k of ['log', 'water']) if (!out[k] || typeof out[k] !== 'object') out[k] = {};
   if (!out.finance.budgets || typeof out.finance.budgets !== 'object') out.finance.budgets = {};
   // v3: ejercicio, hábitos y compras
