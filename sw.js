@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v36';
+const VERSION = 'gp-v37';
 const SHELL = [
   './',
   'index.html',
@@ -8,6 +8,7 @@ const SHELL = [
   'manifest.webmanifest',
   'icons/icon-v2.svg',
   'icons/icon-v2-192.png',
+  'icons/badge-v1.png',
   'icons/icon-v2-512.png',
   'icons/apple-touch-icon-v2.png',
   'icons/icon-v2-maskable-512.png',
@@ -189,7 +190,7 @@ self.addEventListener('push', (e) => {
       // iPhone exige mostrar algo en cada aviso; si ya está todo hecho, se dice eso.
       const title = !first ? 'Gestión Personal' : msgs.length === 1 && details ? first.title : 'Gestión Personal';
       const body = !first ? 'Todo al día ✅' : details ? msgs.map((m) => (msgs.length > 1 ? `${m.title}: ${m.body}` : m.body)).join('\n') : 'Tienes recordatorios pendientes. Toca para verlos.';
-      await self.registration.showNotification(title, { body, icon: 'icons/icon-v2-192.png', badge: 'icons/icon-v2-192.png', tag: 'gp-reminder', renotify: true, data: { url: first?.url || '#today' } });
+      await self.registration.showNotification(title, { body, icon: 'icons/icon-v2-192.png', badge: 'icons/badge-v1.png', tag: 'gp-reminder', renotify: true, data: { url: first?.url || '#today' } });
     })()
   );
 });

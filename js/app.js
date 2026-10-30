@@ -2,7 +2,7 @@ import { load, state, save, APP_VERSION, replaceState, defaults, readOnly } from
 import { lockEnabled, lockScreen } from './security.js';
 import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
 import { MODULES, isOn } from './modules.js';
-import { esc, openSheet, toast } from './util.js';
+import { esc, openSheet, toast, afterBack } from './util.js';
 import { applyTheme } from './theme.js';
 import { cloudStartup } from './cloud.js';
 import { privacySheet } from './privacy.js';
@@ -200,8 +200,10 @@ cloudStartup(); // horas de aviso al día y respaldo automático pendiente
 // ---------- bienvenida: elegir módulos la primera vez ----------
 // Va a Ajustes y abre una de sus hojas (p. ej., activar o recuperar el respaldo en la nube).
 function openInSettings(sheet) {
-  if (location.hash !== '#settings') location.hash = '#settings';
-  setTimeout(sheet, 80);
+  afterBack(() => {
+    if (location.hash !== '#settings') location.hash = '#settings';
+    setTimeout(sheet, 80);
+  });
 }
 
 function welcome() {

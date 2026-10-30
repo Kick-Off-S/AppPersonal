@@ -67,6 +67,47 @@ export const weekdayIndex = (s) => (parseDate(s).getDay() + 6) % 7;
 export const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const DAYS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
+// ---------- botón Atrás (Android) ----------
+// Con una hoja o un informe abierto, "Atrás" debe cerrarlo, no salir de la pantalla ni de la app.
+// Al abrir se agrega una entrada al historial (misma URL); Atrás la quita y se cierra lo abierto.
+// Si se cierra con un botón, se quita esa entrada con history.back() y se ignora su aviso.
+let backCloser = null; // qué cerrar al tocar Atrás
+let entry = false; // ¿hay una entrada nuestra en el historial?
+let pendingBack = false; // history.back() propio en curso
+let pushAfter = false; // se abrió otra cosa mientras tanto
+let queued = []; // acciones que esperan a que termine ese history.back() (p. ej., cambiar de pestaña)
+const pushEntry = () => {
+  if (pendingBack) return (pushAfter = true);
+  if (!entry) history.pushState({ gpSheet: 1 }, ''), (entry = true);
+};
+export function onBack(close) {
+  backCloser = close;
+  pushEntry();
+  // al cerrar desde la app (botón, fondo): se descarta la entrada
+  return () => {
+    if (backCloser !== close) return;
+    backCloser = null;
+    if (entry && !pendingBack) (entry = false), (pendingBack = true), history.back();
+  };
+}
+// Ejecuta fn cuando no haya un history.back() propio en curso (si no, deshacería un cambio de pestaña).
+export const afterBack = (fn) => (pendingBack ? queued.push(fn) : fn());
+window.addEventListener('popstate', () => {
+  if (pendingBack) {
+    pendingBack = false;
+    if (pushAfter) (pushAfter = false), pushEntry();
+    const q = queued;
+    queued = [];
+    q.forEach((fn) => fn());
+    return;
+  }
+  if (!entry) return;
+  entry = false;
+  const c = backCloser;
+  backCloser = null;
+  c?.();
+});
+
 // ---------- hoja inferior ----------
 // onClose se llama siempre al cerrar (botón, fondo o desde el código).
 export function openSheet(html, onMount, onClose) {
@@ -94,9 +135,11 @@ export function openSheet(html, onMount, onClose) {
   fit();
 
   let closed = false;
+  let release = () => {};
   const close = () => {
     if (closed) return;
     closed = true;
+    release();
     vv?.removeEventListener('resize', fit);
     vv?.removeEventListener('scroll', fit);
     root.innerHTML = '';
@@ -106,6 +149,11 @@ export function openSheet(html, onMount, onClose) {
   root.querySelector('.backdrop').addEventListener('click', close);
   sheet.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) close();
+  });
+  // Atrás cierra la hoja (si se abre otra encima, toma su lugar)
+  release = onBack(() => {
+    release = () => {};
+    close();
   });
   if (onMount) onMount(sheet, close);
   return close;
@@ -145,3 +193,20 @@ export async function shareFile(name, text, type, title) {
   }
   return true;
 }
+
+// ---------- plataforma (la app es para iPhone y Android) ----------
+export const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+export const isAndroid = () => /android/i.test(navigator.userAgent);
+export const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// Nombre del desbloqueo biométrico según el teléfono
+export const bioName = () => (isIOS() ? 'Face ID' : isAndroid() ? 'huella' : 'Face ID o huella');
+
+// Instalar la app: Android (Chrome) avisa que se puede instalar; guardamos el aviso para ofrecer un
+// botón "Instalar" en Ajustes. En iPhone no existe: se instala desde Safari → Compartir → Agregar a inicio.
+export const install = { prompt: null };
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  install.prompt = e;
+  window.dispatchEvent(new Event('install-ready'));
+});
+window.addEventListener('appinstalled', () => (install.prompt = null));

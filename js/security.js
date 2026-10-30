@@ -2,7 +2,7 @@
 // y ocultar el contenido al salir de la app. Todo usa la criptografía del propio navegador (Web Crypto
 // y WebAuthn): nada sale del teléfono.
 import { state, save, saveNow } from './store.js';
-import { esc, openSheet, toast } from './util.js';
+import { esc, openSheet, toast, bioName } from './util.js';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -163,7 +163,7 @@ export function lockScreen() {
       <img src="icons/icon-v2-192.png" alt="" width="64" height="64" style="border-radius:16px">
       <h3>Gestión Personal</h3>
       <div id="pad"></div>
-      ${cfg.credId ? '<button class="primary block" id="bio" style="margin-top:12px">Desbloquear con Face ID</button>' : ''}
+      ${cfg.credId ? `<button class="primary block" id="bio" style="margin-top:12px">Desbloquear con ${bioName()}</button>` : ''}
       <button class="ghost block sm" id="forgot" style="margin-top:8px">¿Olvidaste tu PIN?</button>
     </div>`;
     document.body.appendChild(el);

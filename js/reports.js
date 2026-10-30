@@ -2,7 +2,7 @@
 // como archivo .html (se abre en cualquier navegador, sin la app). Colores fijos para que se lean igual
 // impresos o en otro teléfono.
 import { state } from './store.js';
-import { esc, num, openSheet, toast, todayStr, lastDays, parseDate, shareFile } from './util.js';
+import { esc, num, openSheet, toast, todayStr, lastDays, parseDate, shareFile, onBack } from './util.js';
 import { dayTotals, dayMacros, waterOf, extrasFor } from './calc.js';
 import { burnedFor, minsFor } from './views/exercise.js';
 import { dosesFor } from './views/meds.js';
@@ -47,10 +47,12 @@ export function openReport({ title, body, file }) {
     <article class="report">${body}</article>`;
   document.body.appendChild(root);
   document.body.classList.add('report-open');
+  const hide = () => (root.remove(), document.body.classList.remove('report-open'));
+  const release = onBack(hide); // Atrás (Android) cierra el informe
   root.querySelector('.report-bar').onclick = async (e) => {
     const b = e.target.closest('[data-r]');
     if (!b) return;
-    if (b.dataset.r === 'close') return root.remove(), document.body.classList.remove('report-open');
+    if (b.dataset.r === 'close') return release(), hide();
     if (b.dataset.r === 'print') return window.print();
     try {
       await shareFile(file, reportDoc(title, body), 'text/html', title);

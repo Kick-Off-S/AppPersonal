@@ -6,6 +6,17 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.15',
+    date: '2026-10-30',
+    title: 'Mejor en Android',
+    items: [
+      '<b>Botón Atrás de Android:</b> ahora cierra la ventana o el informe abierto, en vez de salir de la pantalla.',
+      '<b>Instalar la app</b> (Ajustes): en Android, un botón para instalarla directo; en iPhone, los pasos desde Safari.',
+      'El ícono pequeño de las notificaciones se ve bien en Android.',
+      'Textos según tu teléfono: Face ID en iPhone, huella en Android, y cómo cuidar tus datos en cada uno.',
+    ],
+  },
+  {
     v: '4.14',
     date: '2026-10-30',
     title: 'Términos y condiciones',
@@ -60,7 +71,7 @@ export const CHANGELOG = [
     date: '2026-10-25',
     title: 'Datos más protegidos',
     items: [
-      'La app guarda una segunda copia de tus datos en el teléfono: si al abrirla el iPhone entrega la base vacía, se recuperan solos.',
+      'La app guarda una segunda copia de tus datos en el teléfono: si al abrirla el teléfono entrega la base vacía, se recuperan solos.',
       'El respaldo en la nube nunca se reemplaza por una app vacía.',
       'Diagnóstico de datos en Ajustes → Respaldo.',
     ],
@@ -72,7 +83,7 @@ export const CHANGELOG = [
     items: [
       'Los hábitos pueden tener hora: se ordenan por horario y te avisan a esa hora si no los marcaste.',
       'Si abres la app sin datos, puedes recuperarlos desde la nube o desde un archivo.',
-      'Aviso: en iPhone, eliminar el ícono de la app borra sus datos.',
+      'Aviso: en iPhone, eliminar el ícono de la app borra sus datos; en Android, borrar los datos de Chrome.',
     ],
   },
   {

@@ -23,6 +23,7 @@ Abrir http://localhost:8080 (en Chrome, modo móvil).
 2. Settings → Pages → Deploy from branch → `main` / root.
 3. Compartir el link `https://<usuario>.github.io/<repo>/`.
 4. En iPhone: abrir el link en **Safari** → Compartir → **Agregar a inicio**.
+5. En Android: abrir el link en **Chrome** → menú ⋮ → **Instalar app** (o el botón *Instalar* en Ajustes de la app).
 
 Los datos personales nunca se suben: viven en el teléfono de cada uno.
 

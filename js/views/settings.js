@@ -1,6 +1,6 @@
 import { state, save, replaceState, defaults, APP_VERSION, VERSION, getPrevious, diagLog } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
-import { esc, toast } from '../util.js';
+import { esc, toast, install, isAndroid } from '../util.js';
 import { MODULES, isOn, setModule } from '../modules.js';
 import * as cloud from '../cloud.js';
 import { askBackupPassword, lockEnabled, setPin, checkPin, pinPad, biometricAvailable, registerBiometric } from '../security.js';
@@ -75,7 +75,7 @@ function render() {
       ${
         lockEnabled()
           ? `${bioOk ? `<label class="mod"><input type="checkbox" class="switch" data-sec="bio" ${state.settings.lock.credId ? 'checked' : ''}>
-              <span class="grow"><b>Face ID / huella</b><small>Desbloquea sin escribir el PIN.</small></span></label>` : ''}
+              <span class="grow"><b>${cloud.isIOS() ? 'Face ID' : 'Huella o rostro'}</b><small>Desbloquea sin escribir el PIN.</small></span></label>` : ''}
             <div class="small muted" style="margin-top:6px">Volver a bloquear</div>
             <div class="seg">${[[0, 'Al salir'], [60, '1 min'], [300, '5 min'], [900, '15 min']]
               .map(([v, l]) => `<button type="button" class="${(state.settings.lock.after ?? 0) === v ? 'sel' : ''}" data-act="lock-after" data-v="${v}">${l}</button>`)
@@ -87,12 +87,13 @@ function render() {
       <button class="ghost block sm" data-act="terms">Términos y condiciones${state.settings.terms?.at ? ` · aceptados el ${new Date(state.settings.terms.at).toLocaleDateString('es-CL')}` : ''}</button>
     </div>
 
+    ${installCard()}
     ${notifCard()}
     ${cloudCard()}
 
     <div class="card" id="backup-card"><h2>Respaldo</h2>
-      <p class="small muted" style="margin-top:0">Tus datos viven solo en este teléfono. Guarda un respaldo para no perderlos si cambias de teléfono, borras la app o limpias Safari.</p>
-      <div class="banner warn small">En iPhone, <b>eliminar el ícono de la pantalla de inicio borra los datos de la app</b> (también al quitarlo para cambiarle el nombre). Antes de hacerlo, activa el respaldo automático o guarda un respaldo.</div>
+      <p class="small muted" style="margin-top:0">Tus datos viven solo en este teléfono. Guarda un respaldo para no perderlos si cambias de teléfono, borras la app o limpias los datos del navegador.</p>
+      <div class="banner warn small">${cloud.isIOS() ? '<b>En iPhone, eliminar el ícono de la pantalla de inicio borra los datos de la app</b> (también al quitarlo para cambiarle el nombre).' : '<b>Borrar los datos del navegador (Chrome → Configuración → Privacidad) o del sitio borra los datos de la app.</b>'} Antes de hacerlo, activa el respaldo automático o guarda un respaldo.</div>
       ${hasData && stale ? `<div class="banner warn">${age === null ? 'Aún no has hecho ningún respaldo.' : `Tu último respaldo fue hace ${age} días.`}</div>` : ''}
       <div class="small muted">Último respaldo: ${state.settings.lastBackup ? new Date(state.settings.lastBackup).toLocaleString('es-CL') : 'nunca'}</div>
       ${previous ? `<button class="ghost block sm" data-act="undo" style="margin-top:6px">Deshacer: volver a los datos de ${esc(previous.label.toLowerCase())} (${new Date(previous.at).toLocaleString('es-CL')})</button>` : ''}
@@ -192,7 +193,7 @@ async function onSecurity(kind, on, input) {
 
 function bioOfferSheet() {
   openSheet(
-    `<h3>¿Usar Face ID o huella?</h3><p class="muted small" style="margin-top:0">Desbloquea la app sin escribir el PIN. El PIN sigue sirviendo siempre.</p>
+    `<h3>¿Usar ${cloud.isIOS() ? 'Face ID' : 'tu huella o rostro'}?</h3><p class="muted small" style="margin-top:0">Desbloquea la app sin escribir el PIN. El PIN sigue sirviendo siempre.</p>
     <div class="actions"><button class="ghost" data-close>Ahora no</button><button class="primary" id="bio">Activar</button></div>`,
     (sheet, close) =>
       (sheet.querySelector('#bio').onclick = async () => {
@@ -207,10 +208,26 @@ async function enableBio() {
   try {
     state.settings.lock.credId = await registerBiometric();
     save();
-    toast('Face ID / huella activado');
+    toast(cloud.isIOS() ? 'Face ID activado' : 'Desbloqueo con huella activado');
   } catch {
     toast('No se pudo activar. Puedes seguir usando tu PIN.');
   }
+}
+
+// ---------- instalar la app (iPhone y Android) ----------
+window.addEventListener('install-ready', () => root?.isConnected && render());
+function installCard() {
+  if (standalone()) return '';
+  const how = isIOS()
+    ? 'En <b>Safari</b> toca <b>Compartir</b> (el cuadrado con la flecha) → <b>Agregar a inicio</b>. Luego abre la app desde ese ícono.'
+    : install.prompt
+      ? 'Queda como una app más en tu teléfono, funciona sin internet y recibe notificaciones.'
+      : isAndroid()
+        ? 'En <b>Chrome</b> toca el menú <b>⋮</b> → <b>Instalar app</b> (o <b>Agregar a la pantalla principal</b>). Luego ábrela desde ese ícono.'
+        : 'Ábrela desde tu teléfono: en Android con Chrome y en iPhone con Safari.';
+  return `<div class="card"><h2>Instalar la app</h2><p class="small muted" style="margin-top:0">${how}</p>
+    ${install.prompt ? '<button class="primary block" data-act="install">Instalar en este teléfono</button>' : ''}
+    ${isIOS() ? '<p class="small warn" style="margin-bottom:0">Ojo: la app instalada no ve los datos que registraste en Safari. Si ya tienes datos aquí, guarda un respaldo antes y restáuralo en la app instalada.</p>' : ''}</div>`;
 }
 
 // ---------- notificaciones ----------
@@ -222,7 +239,7 @@ function notifCard() {
     return `<div class="card"><h2>Notificaciones</h2><div class="small muted">${
       cloud.isIOS() && !cloud.standalone()
         ? 'Para recibir avisos en iPhone, primero instala la app en la pantalla de inicio (Safari → Compartir → Agregar a inicio) y ábrela desde ese ícono. Necesitas iOS 16.4 o superior.'
-        : 'Este navegador no permite notificaciones.'
+        : 'Este navegador no permite notificaciones. En Android usa Chrome (o la app instalada desde Chrome); en iPhone, la app instalada desde Safari.'
     }</div></div>`;
   const n = cloud.notifCfg();
   const row = (k, emoji, title, desc, time) => `<label class="mod"><input type="checkbox" class="switch" data-notif="${k}" ${n[k] ? 'checked' : ''}>
@@ -394,6 +411,12 @@ async function onClick(e) {
   const t = e.target.closest('[data-act]');
   if (!t) return;
   if (t.dataset.act === 'push-on') return pushConsentSheet();
+  if (t.dataset.act === 'install' && install.prompt) {
+    const p = install.prompt;
+    install.prompt = null;
+    p.prompt();
+    return p.userChoice.then((c) => (toast(c.outcome === 'accepted' ? 'Instalando… búscala en tu pantalla de inicio' : 'Instalación cancelada'), render()));
+  }
   if (t.dataset.act === 'privacy') return privacySheet();
   if (t.dataset.act === 'history') return e.preventDefault(), historySheet(APP_VERSION);
   if (t.dataset.act === 'terms') return termsSheet();
