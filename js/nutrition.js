@@ -5,7 +5,7 @@
 //  - Proteína por kg (con IMC ≥ 30 se usa el peso de referencia con IMC 25), grasas 28 %, resto carbohidratos.
 import { BASE_FOODS } from './foods.js';
 import { factorOf, scaled, amountLabel } from './foodpicker.js';
-import { uid } from './util.js';
+import { uid, parseDate, addDays } from './util.js';
 
 export const ACTIVITY = [
   { id: 'sed', name: 'Sedentaria', desc: 'Trabajo sentado y casi sin ejercicio', f: 1.2 },
@@ -49,6 +49,84 @@ export function evaluate({ sex, age, height, weight, activity, goal }) {
   const c = Math.max(0, Math.round((kcal - p * 4 - f * 9) / 4));
   const bmiCat = bmi < 18.5 ? 'bajo peso' : bmi < 25 ? 'normal' : bmi < 30 ? 'sobrepeso' : 'obesidad';
   return { bmr: Math.round(bmr), tdee: Math.round(tdee), kcal, p, c, f, bmi: Math.round(bmi * 10) / 10, bmiCat, floored, goalName: g.name };
+}
+
+// ---------- meta de peso ----------
+// IMC de adultos según la OMS. Desde los 65 años se usa la referencia del MINSAL para personas mayores
+// (normal de 23 a 27,9). En menores de 18 el IMC se mide con tablas por edad: no se calcula aquí.
+const half = (x, f = Math.round) => f(x * 2) / 2;
+export function bmiInfo(weight, height, age) {
+  const h2 = (height / 100) ** 2;
+  const older = age >= 65;
+  const [lo, hi, ob] = older ? [23, 28, 32] : [18.5, 25, 30];
+  const bmi = weight / h2;
+  const cat = bmi < lo ? 'bajo peso' : bmi < hi ? 'normal' : bmi < ob ? 'sobrepeso' : 'obesidad';
+  return { bmi: Math.round(bmi * 10) / 10, cat, older, lo, hi, ob, h2, healthy: [half(lo * h2, Math.ceil), half((hi - 0.1) * h2, Math.floor)] };
+}
+
+// Ritmos de referencia (kg por semana): bajar 0,5 es cómodo y hasta ~1 (o 1 % del peso) exigente;
+// subir, 0,25 cómodo y 0,5 exigente. Más rápido no se recomienda sin supervisión.
+export const PACE = { lose: [0.5, 1], gain: [0.25, 0.5] };
+const dec = (x) => String(x).replace('.', ','); // 73.5 → 73,5
+const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 86400000);
+
+export function weightAdvice({ weight, height, age, goalKg, goalDate, today }) {
+  if (age && age < 18) return { minor: true };
+  const b = bmiInfo(weight, height, age);
+  const [hmin, hmax] = b.healthy;
+  let suggest;
+  let why;
+  if (b.bmi < b.lo) {
+    suggest = hmin;
+    why = 'Estás bajo el rango saludable para tu estatura: lo indicado es subir de a poco, idealmente con apoyo de un profesional.';
+  } else if (b.bmi < b.hi) {
+    suggest = half(weight);
+    why = 'Tu peso está en el rango saludable: una buena meta es mantenerlo.';
+  } else {
+    suggest = half(Math.max(hmax, weight * 0.9));
+    why =
+      suggest > hmax
+        ? 'Bajar entre 5 y 10 % de tu peso ya trae beneficios para la salud. Te sugerimos una primera etapa de −10 %; al lograrla, fijas la siguiente.'
+        : 'Con esta meta llegas al rango saludable para tu estatura.';
+  }
+  const out = { ...b, suggest, why };
+  if (!goalKg) return out;
+
+  const diff = goalKg - weight;
+  const lose = diff < 0;
+  const goalBmi = Math.round((goalKg / b.h2) * 10) / 10;
+  const notes = [];
+  let level = 'ok';
+  if (Math.abs(diff) < 0.5) {
+    out.goal = { diff, goalBmi, reached: true, notes, level };
+    return out;
+  }
+  if (goalBmi < b.lo) {
+    level = 'bad';
+    notes.push(`Esa meta te deja bajo el rango saludable (IMC ${dec(goalBmi)}). La meta mínima recomendada para tu estatura es ${dec(hmin)} kg.`);
+  } else if (!lose && b.bmi >= b.hi) {
+    level = 'warn';
+    notes.push('Tu IMC ya está sobre el rango saludable: subir de peso no es recomendable, salvo que un profesional lo indique (por ejemplo, para ganar músculo).');
+  } else if (!lose && goalBmi >= b.hi) {
+    level = 'warn';
+    notes.push(`Esa meta te deja sobre el rango saludable (IMC ${dec(goalBmi)}). El máximo recomendado para tu estatura es ${dec(hmax)} kg.`);
+  } else if (lose && goalBmi >= b.hi) notes.push(`Esa meta aún queda sobre el rango saludable (hasta ${dec(hmax)} kg), pero es un buen primer paso.`);
+  if (lose && -diff > weight * 0.1) notes.push('Es más del 10 % de tu peso: te conviene dividirla en etapas y celebrar cada una.');
+
+  const [comfy, max] = lose ? [PACE.lose[0], Math.max(PACE.lose[1], weight * 0.01)] : PACE.gain;
+  const weeks = Math.ceil(Math.abs(diff) / comfy);
+  const goal = { diff, goalBmi, lose, pace: comfy, weeks, eta: addDays(today, weeks * 7), notes, level };
+  if (goalDate && goalDate > today) {
+    const wk = daysBetween(today, goalDate) / 7;
+    const need = Math.abs(diff) / wk;
+    goal.byDate = { date: goalDate, need: Math.round(need * 100) / 100, verdict: need <= comfy ? 'cómodo' : need <= max ? 'exigente' : 'poco realista' };
+    if (goal.byDate.verdict === 'poco realista') {
+      goal.level = level === 'bad' ? 'bad' : 'warn';
+      notes.push(lose ? 'Es demasiado rápido para esa fecha: lo que se baja tan rápido suele volver (efecto rebote). Mejor elige una fecha más lejana.' : 'Es demasiado rápido para esa fecha: subir tan rápido suma sobre todo grasa. Mejor elige una fecha más lejana.');
+    }
+  }
+  out.goal = goal;
+  return out;
 }
 
 // ---------- plan guía ----------

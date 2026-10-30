@@ -66,3 +66,27 @@ test('plan para subir de peso: la proteína no se dispara (≤ 135 % de la meta 
   assert.ok(avgP <= r.p * 1.35, `proteína promedio ${Math.round(avgP)} de ${r.p}`);
   for (const d of days) assert.ok(Math.abs(d.reduce((a, m) => a + m.kcal, 0) - r.kcal) / r.kcal < 0.15);
 });
+
+test('meta de peso: IMC, rango saludable, meta sugerida y ritmo realista', async () => {
+  const { weightAdvice, bmiInfo } = await import('../js/nutrition.js');
+  const today = '2026-10-30';
+  // 172 cm, 90 kg → IMC 30,4 (obesidad); rango 55–73,5; primera etapa −10 % = 81 kg
+  const a = weightAdvice({ weight: 90, height: 172, age: 35, today });
+  assert.equal(a.bmi, 30.4);
+  assert.equal(a.cat, 'obesidad');
+  assert.deepEqual(a.healthy, [55, 73.5]);
+  assert.equal(a.suggest, 81);
+  // meta 80 kg: 10 kg a 0,5 por semana = 20 semanas; para fin de año es poco realista
+  const g = weightAdvice({ weight: 90, height: 172, age: 35, goalKg: 80, goalDate: '2026-12-31', today }).goal;
+  assert.equal(g.weeks, 20);
+  assert.equal(g.eta, '2027-03-19');
+  assert.equal(g.byDate.verdict, 'poco realista');
+  assert.equal(g.level, 'warn');
+  // meta bajo el rango saludable: se marca como no recomendable
+  assert.equal(weightAdvice({ weight: 60, height: 172, age: 30, goalKg: 52, today }).goal.level, 'bad');
+  // 70 años: referencia MINSAL (normal 23–27,9)
+  assert.equal(bmiInfo(75, 170, 70).cat, 'normal');
+  assert.equal(bmiInfo(75, 170, 40).cat, 'sobrepeso');
+  // menores: no se calcula
+  assert.ok(weightAdvice({ weight: 50, height: 160, age: 15, today }).minor);
+});

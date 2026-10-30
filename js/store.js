@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.9';
+export const APP_VERSION = '4.10';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -171,10 +171,12 @@ function normalize(o) {
   for (const k of ['kcalGoal', 'waterGoal', 'goalKg']) st[k] = pos(st[k]);
   st.macroGoals = isObj(st.macroGoals) ? { p: pos(st.macroGoals.p), c: pos(st.macroGoals.c), f: pos(st.macroGoals.f) } : null;
   if (st.profile !== undefined && !isObj(st.profile)) st.profile = null;
+  if (st.body !== undefined) st.body = isObj(st.body) ? { height: pos(st.body.height) <= 250 ? pos(st.body.height) : 0, age: pos(st.body.age) <= 120 ? Math.round(pos(st.body.age)) : 0 } : null;
+  st.goalDate = typeof st.goalDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(st.goalDate) ? st.goalDate : '';
   if (st.notif !== undefined) {
     const n = isObj(st.notif) ? st.notif : {};
     const hhmm = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : v === false ? false : undefined);
-    st.notif = { meds: n.meds !== false, water: !!n.water, details: n.details !== false, habits: hhmm(n.habits), exercise: hhmm(n.exercise), bills: hhmm(n.bills) };
+    st.notif = { meds: n.meds !== false, meals: n.meals !== false, water: !!n.water, details: n.details !== false, habits: hhmm(n.habits), exercise: hhmm(n.exercise), bills: hhmm(n.bills) };
     for (const k of ['habits', 'exercise', 'bills']) if (st.notif[k] === undefined) delete st.notif[k];
   }
   o.diet.plan = normalizePlan(o.diet.plan);

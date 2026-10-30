@@ -2,17 +2,20 @@
 // Si cambias lo que se envía al servidor o los plazos de borrado (server/src/index.js), actualiza este texto.
 import { openSheet } from './util.js';
 
-export const PRIVACY_DATE = '25-10-2026';
+export const PRIVACY_DATE = '30-10-2026';
 export const BACKUP_DAYS = 365; // respaldo en la nube sin actualizar → se borra
 export const PUSH_DAYS = 90; // avisos de un teléfono que no abre la app → se borran
 
-export function privacySheet() {
+export function privacySheet(onClose) {
   openSheet(
     `<h3>Aviso de privacidad</h3>
     <div class="small muted">Actualizado el ${PRIVACY_DATE}</div>
     <div class="privacy">
       <h4>En tu teléfono</h4>
       <p>Todo lo que registras (dieta, peso, medicamentos, ejercicio, hábitos, gastos y ahorro) se guarda <b>solo en este teléfono</b>. La app no tiene cuentas, publicidad ni analítica, y no vende ni comparte datos.</p>
+
+      <h4>Para qué se usan</h4>
+      <p>Solo para mostrarte tu información, hacer los cálculos (calorías, IMC, gastos, cuotas) y recordarte lo que tú programaste. No se usan para armar perfiles, no se venden y nadie más los ve. Tu estatura, edad y peso se usan solo en este teléfono para la evaluación nutricional y la meta de peso.</p>
 
       <h4>Lo que sale del teléfono, solo si tú lo activas</h4>
       <p><b>Notificaciones:</b> la dirección de avisos que entrega Apple o Google, tu zona horaria y las <i>horas</i> de aviso (por ejemplo, 08:00 los lunes). No se envían nombres de medicamentos, montos ni otros datos: el mensaje se arma en tu teléfono.</p>
@@ -40,6 +43,8 @@ export function privacySheet() {
       <h4>No es consejo médico</h4>
       <p>Las evaluaciones, planes de dieta y recordatorios de medicamentos son una guía. Consulta siempre a tu médico o nutricionista.</p>
     </div>
-    <div class="actions"><button class="primary" data-close>Entendido</button></div>`
+    <div class="actions"><button class="primary" data-close>Entendido</button></div>`,
+    undefined,
+    onClose
   );
 }

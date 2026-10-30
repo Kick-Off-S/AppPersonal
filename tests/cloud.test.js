@@ -84,3 +84,17 @@ test('hábitos con hora: se ordenan por hora, avisan a esa hora y no si ya está
   st.habits.done = { '2026-10-26': { b: true } };
   assert.equal(at(8, 32).length, 0, 'ya marcado: no avisa');
 });
+
+test('comidas del plan: avisa a su hora los días que corresponde y no si ya se marcó', () => {
+  const plan = { 0: [{ id: 'a', name: 'Almuerzo', time: '13:30', desc: 'Pollo con arroz', kcal: 600 }], 1: [{ id: 'b', name: 'Almuerzo', time: '13:30', kcal: 600 }], 2: [], 3: [], 4: [], 5: [], 6: [{ id: 'c', name: 'Desayuno', time: '10:00', kcal: 300 }] };
+  set({ settings: { notif: { meals: true, meds: false, habits: false, exercise: false, bills: false } }, diet: { plan } });
+  const slots = pushSlots();
+  assert.ok(slots.some((x) => x.t === '13:30' && JSON.stringify(x.d) === '[0,1]'));
+  assert.ok(slots.some((x) => x.t === '10:00' && JSON.stringify(x.d) === '[6]'));
+  const st = { settings: { notif: { meals: true, meds: false, habits: false } }, diet: { plan, done: {} } };
+  const out = [...ctx.compose(st, new Date(2026, 9, 26, 13, 31))]; // lunes
+  assert.equal(out[0].title, '🍽️ Hora de tu almuerzo');
+  assert.equal(out[0].body, 'Pollo con arroz');
+  st.diet.done = { '2026-10-26': { a: { kcal: 600 } } };
+  assert.equal(ctx.compose(st, new Date(2026, 9, 26, 13, 31)).length, 0);
+});

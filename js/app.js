@@ -5,6 +5,7 @@ import { MODULES, isOn } from './modules.js';
 import { esc, openSheet, toast } from './util.js';
 import { applyTheme } from './theme.js';
 import { cloudStartup } from './cloud.js';
+import { privacySheet } from './privacy.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
 import * as finance from './views/finance.js';
@@ -17,6 +18,7 @@ import * as shopping from './views/shopping.js';
 import * as meds from './views/meds.js';
 
 const ICONS = {
+  privacy: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-3.5"/>',
   today: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M9 15l2 2 4-4"/>',
   progress: '<path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 5-6"/>',
   diet: '<path d="M9 5h11M9 12h11M9 19h11"/><path d="M3.5 5l1.3 1.3L7 4M3.5 12l1.3 1.3L7 11M3.5 19l1.3 1.3L7 18"/>',
@@ -52,13 +54,15 @@ const moreTabs = () => (visibleTabs().length > MAX_BAR ? visibleTabs().slice(MAX
 // Pestaña "Más": lista de las secciones que no caben en la barra.
 const moreView = {
   mount(el) {
-    el.onclick = null;
+    el.onclick = (e) => e.target.closest('[data-act="privacy"]') && (e.preventDefault(), privacySheet());
     el.innerHTML = `<div class="card more">${moreTabs()
       .map(
         (t) => `<a class="item" href="#${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[t.id]}</svg>
         <div class="grow t">${t.title || t.label}</div><span class="muted">›</span></a>`
       )
-      .join('')}</div>
+      .join('')}
+      <a class="item" href="#" data-act="privacy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.privacy}</svg>
+        <div class="grow t">Privacidad y tus datos</div><span class="muted">›</span></a></div>
       <p class="small muted" style="text-align:center">Elige qué módulos ver en <a href="#settings">Ajustes</a>.</p>`;
   },
 };
@@ -185,18 +189,28 @@ function welcome() {
   state.settings.setupDone = true;
   save();
   if (hasData()) return false; // quien ya usaba la app sigue con todo activo
-  const chosen = new Set(MODULES.map((m) => m.id));
+  welcomeSheet(new Set(MODULES.map((m) => m.id)));
+  return true;
+}
+
+function welcomeSheet(chosen) {
   openSheet(
     `<h3>¡Bienvenido!</h3>
     <p class="muted small" style="margin-top:0">¿Qué quieres usar? Puedes cambiarlo cuando quieras en <b>Ajustes</b>.</p>
     <div id="mods">${MODULES.map(
-      (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" checked>
+      (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" ${chosen.has(m.id) ? 'checked' : ''}>
         <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></span></label>`
     ).join('')}</div>
+    <div class="privacy-intro small"><b>🔒 Tus datos son tuyos.</b> Todo lo que registras queda solo en este teléfono: sin cuentas, sin publicidad y sin compartir con nadie. Las notificaciones y el respaldo en la nube son opcionales y te pedimos permiso antes de activarlos. <a href="#" id="priv">Cómo tratamos tus datos</a></div>
     <div class="actions"><button class="primary" id="go">Empezar</button></div>
     <div class="banner" style="margin-top:14px"><b>¿Ya usabas la app?</b> Si cambiaste de teléfono o se borró la app, recupera tus datos:
       <div class="actions"><button class="sm" id="r-cloud">Desde la nube</button><button class="sm" id="r-file">Desde un archivo</button></div></div>`,
     (sheet, close) => {
+      // el aviso abre en su propia hoja; al cerrarlo se vuelve a la bienvenida con lo elegido
+      sheet.querySelector('#priv').onclick = (e) => {
+        e.preventDefault();
+        privacySheet(() => welcomeSheet(chosen));
+      };
       sheet.querySelector('#r-cloud').onclick = () => (close(), openInSettings(settings.cloudRestoreSheet));
       sheet.querySelector('#r-file').onclick = () => {
         close();
@@ -220,7 +234,6 @@ function welcome() {
       };
     }
   );
-  return true;
 }
 
 function isIOSDevice() {
@@ -237,10 +250,10 @@ function whatsNew() {
   openSheet(
     `<h3>Novedades de la versión ${APP_VERSION}</h3>
     <ul class="news">
-      <li><b>🛟 Datos más protegidos:</b> la app ahora guarda una segunda copia de tus datos en el teléfono. Si al abrirla el iPhone entrega la base vacía (por ejemplo, después de que la app se cierra de golpe), se recuperan solos desde esa copia.</li>
-      <li>El respaldo en la nube nunca se reemplaza por una app vacía.</li>
-      <li><b>Diagnóstico de datos</b> (Ajustes → Respaldo): muestra cómo se abrieron tus datos. Si vuelves a perder algo, cópialo y envíalo.</li>
-      <li>De la 4.8: hábitos con horario y aviso a su hora.</li>
+      <li><b>⚖️ Meta de peso realista (Progreso → Meta de peso):</b> calcula tu IMC, el rango de peso saludable para tu estatura y una meta sugerida. Te dice en cuántas semanas la lograrías a un ritmo sano y si la fecha que elegiste es realista.</li>
+      <li><b>🍽️ Avisos de comidas:</b> con las notificaciones activadas, te avisa a la hora de cada comida de tu plan si aún no la marcas (se puede apagar en Ajustes → Notificaciones).</li>
+      <li><b>🔒 Privacidad a mano:</b> en Más → Privacidad y tus datos ves cómo se tratan tus datos.</li>
+      <li>De la 4.9: copia de seguridad interna de tus datos y diagnóstico.</li>
     </ul>
     <div class="actions"><button class="primary" data-close>¡Entendido!</button></div>`
   );

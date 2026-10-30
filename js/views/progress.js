@@ -1,7 +1,8 @@
 import { state, save } from '../store.js';
 import { dayTotals, dayMacros, dietStreak, waterOf } from '../calc.js';
 import { barChart, lineChart } from '../charts.js';
-import { esc, uid, num, parseQty, openSheet, toast, todayStr, addDays, lastDays, weekdayShort, shortDate, dayLabel } from '../util.js';
+import { esc, uid, num, parseQty, openSheet, toast, todayStr, addDays, lastDays, weekdayShort, shortDate, dayLabel, parseDate } from '../util.js';
+import { bmiInfo, weightAdvice } from '../nutrition.js';
 
 let root;
 let range = 30; // días del gráfico de peso (0 = todo)
@@ -14,6 +15,35 @@ export function mount(el) {
 
 const byDate = () => [...state.weight].sort((a, b) => a.date.localeCompare(b.date));
 const kg = (v) => num(v, 1);
+// Estatura y edad: de la meta de peso o de la evaluación nutricional (Dieta)
+const body = () => ({ height: state.settings.body?.height || state.settings.profile?.height || 0, age: state.settings.body?.age || state.settings.profile?.age || 0 });
+const fmtDate = (s) => new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseDate(s));
+
+// Ritmo real (kg por semana) con los registros de las últimas 4 semanas; necesita al menos 10 días de diferencia.
+function realPace(all) {
+  const recent = all.filter((w) => w.date >= addDays(todayStr(), -28));
+  if (recent.length < 2) return null;
+  const a = recent[0];
+  const b = recent[recent.length - 1];
+  const days = (parseDate(b.date) - parseDate(a.date)) / 86400000;
+  return days >= 10 ? ((b.kg - a.kg) / days) * 7 : null;
+}
+
+function bodyLine(last, goalKg, all) {
+  const { height, age } = body();
+  if (!height) return `<div class="small" style="margin-top:6px"><a href="#" data-act="goalw">Calcula tu IMC y una meta realista</a></div>`;
+  if (age && age < 18) return '';
+  const a = weightAdvice({ weight: last.kg, height, age, goalKg, goalDate: state.settings.goalDate, today: todayStr() });
+  const pace = realPace(all);
+  const g = a.goal;
+  return `<div class="small" style="margin-top:6px">IMC <b>${num(a.bmi, 1)}</b> · ${a.cat} · saludable para tu estatura: ${kg(a.healthy[0])} a ${kg(a.healthy[1])} kg</div>
+    ${
+      g
+        ? `<div class="small muted">Meta ${kg(goalKg)} kg · ${g.reached ? '¡lograda! 🎉' : `faltan ${kg(Math.abs(g.diff))} kg · a ritmo sano, cerca del ${fmtDate(g.eta)}`}${g.byDate && !g.reached ? ` · para el ${fmtDate(g.byDate.date)}: ${num(g.byDate.need, 2)} kg/sem (${g.byDate.verdict})` : ''}</div>`
+        : ''
+    }
+    ${pace != null ? `<div class="small muted">Tu ritmo en las últimas semanas: ${pace > 0 ? '+' : pace < 0 ? '−' : ''}${num(Math.abs(pace), 2)} kg por semana</div>` : ''}`;
+}
 
 function render() {
   const days = lastDays(7);
@@ -51,7 +81,7 @@ function render() {
           ? `<div class="row between"><div><div class="big">${kg(last.kg)}<span class="mid muted"> kg</span></div><div class="small muted">${dayLabel(last.date)}</div></div>
           <div style="text-align:right"><div class="mid ${all.length > 1 ? (diff <= 0 ? 'pos' : 'warn') : ''}">${all.length > 1 ? (diff > 0 ? '+' : diff < 0 ? '−' : '') + kg(Math.abs(diff)) + ' kg' : '—'}</div>
           <div class="small muted">desde el inicio</div></div></div>
-          ${goalKg ? `<div class="small muted" style="margin-top:6px">Meta: ${kg(goalKg)} kg · ${Math.abs(last.kg - goalKg) < 0.05 ? '¡lograda!' : `faltan ${kg(Math.abs(last.kg - goalKg))} kg`}</div>` : ''}
+          ${bodyLine(last, goalKg, all)}
           <div class="seg"><button class="${range === 30 ? 'sel' : ''}" data-act="range" data-r="30">30 días</button><button class="${range === 90 ? 'sel' : ''}" data-act="range" data-r="90">90 días</button><button class="${range === 0 ? 'sel' : ''}" data-act="range" data-r="0">Todo</button></div>
           ${
             pts.length
@@ -107,19 +137,85 @@ function onClick(e) {
     render();
   } else if (act === 'addw') weightSheet();
   else if (act === 'editw') weightSheet(state.weight.find((w) => w.id === id));
-  else if (act === 'goalw') goalSheet();
+  else if (act === 'goalw') (e.preventDefault(), goalSheet());
 }
 
+const GUIDE = 'Es una guía con fórmulas generales (IMC de la OMS; desde los 65 años, la referencia del MINSAL). No reemplaza a tu médico o nutricionista.';
+
 function goalSheet() {
+  const { height, age } = body();
+  const last = byDate().pop();
   openSheet(
-    `<h3>Meta de peso</h3><p class="muted small" style="margin-top:0">Deja en blanco para quitarla.</p>
-    <label class="field">Peso objetivo (kg)<input id="g" inputmode="decimal" value="${state.settings.goalKg || ''}" placeholder="Ej: 68,5"></label>
-    <div class="actions"><button class="ghost" data-close>Cancelar</button><button class="primary" id="ok">Guardar</button></div>`,
+    `<h3>Meta de peso</h3>
+    <div class="banner warn small" style="margin-top:4px">${GUIDE}</div>
+    <div class="three"><label class="field">Estatura<input id="h" inputmode="numeric" value="${height || ''}" placeholder="cm"></label>
+      <label class="field">Edad<input id="age" inputmode="numeric" value="${age || ''}" placeholder="años"></label>
+      <label class="field">Peso hoy<input id="w" inputmode="decimal" value="${last ? num(last.kg, 1) : ''}" placeholder="kg"></label></div>
+    <div class="two"><label class="field">Meta (kg)<input id="g" inputmode="decimal" value="${state.settings.goalKg ? num(state.settings.goalKg, 1) : ''}" placeholder="Ej: 68,5"></label>
+      <label class="field">Para cuándo (opcional)<input id="d" type="date" min="${addDays(todayStr(), 7)}" value="${state.settings.goalDate || ''}"></label></div>
+    <div id="adv"></div>
+    <div class="actions">${state.settings.goalKg ? '<button class="ghost" id="clear">Quitar meta</button>' : '<button class="ghost" data-close>Cancelar</button>'}<button class="primary" id="ok">Guardar</button></div>`,
     (sheet, close) => {
-      sheet.querySelector('#ok').onclick = () => {
-        state.settings.goalKg = parseQty(sheet.querySelector('#g').value) || 0;
+      const $ = (s) => sheet.querySelector(s);
+      const read = () => ({ height: parseQty($('#h').value), age: Math.round(parseQty($('#age').value)) || 0, weight: parseQty($('#w').value), goalKg: parseQty($('#g').value) || 0, goalDate: $('#d').value || '' });
+      let advice = null;
+      const draw = () => {
+        const v = read();
+        advice = null;
+        if (!(v.height >= 120 && v.height <= 230) || !(v.weight >= 30 && v.weight <= 300))
+          return ($('#adv').innerHTML = '<div class="small muted" style="margin-top:10px">Escribe tu estatura (cm) y tu peso de hoy para ver tu IMC y una meta recomendada.</div>');
+        advice = weightAdvice({ ...v, today: todayStr() });
+        if (advice.minor) return ($('#adv').innerHTML = '<div class="banner warn" style="margin-top:10px">En menores de 18 años el peso se evalúa con tablas por edad: consulta con tu pediatra o nutricionista para fijar una meta.</div>');
+        const a = advice;
+        const pos = Math.min(100, Math.max(0, ((a.bmi - 15) / (40 - 15)) * 100));
+        const seg = (from, to) => (((to - from) / 25) * 100).toFixed(1) + '%';
+        const g = a.goal;
+        $('#adv').innerHTML = `<div class="advice">
+          <div class="row between"><span>Tu IMC: <b>${num(a.bmi, 1)}</b></span><span class="pill-${a.cat === 'normal' ? 'ok' : a.cat === 'sobrepeso' ? 'warn' : 'bad'}">${a.cat}</span></div>
+          <div class="bmibar" aria-hidden="true"><i style="width:${seg(15, a.lo)}"></i><i style="width:${seg(a.lo, a.hi)}"></i><i style="width:${seg(a.hi, a.ob)}"></i><i style="width:${seg(a.ob, 40)}"></i><b style="left:${pos}%"></b></div>
+          <div class="small muted">Rango saludable para ${num(v.height)} cm${a.older ? ' (desde los 65 años)' : ''}: <b>${kg(a.healthy[0])} a ${kg(a.healthy[1])} kg</b></div>
+          <div class="sugg-goal"><div class="grow"><b>Meta sugerida: ${kg(a.suggest)} kg</b><div class="small muted">${a.why}</div></div>
+            ${Math.abs(a.suggest - v.goalKg) >= 0.1 ? `<button type="button" class="sm" id="use">Usar</button>` : ''}</div>
+          ${
+            g
+              ? `<div class="goal-eval lv-${g.level}">${
+                  g.reached
+                    ? '<b>¡Ya estás en tu meta! 🎉</b>'
+                    : `<div><b>${g.lose ? 'Bajar' : 'Subir'} ${kg(Math.abs(g.diff))} kg</b> · IMC final ${num(g.goalBmi, 1)}</div>
+                  <div class="small">A un ritmo sano (${num(g.pace, 2)} kg por semana) son unas <b>${g.weeks} semanas</b>: cerca del ${fmtDate(g.eta)}.</div>
+                  ${g.byDate ? `<div class="small">Para el ${fmtDate(g.byDate.date)} necesitas ${num(g.byDate.need, 2)} kg por semana: <b>${g.byDate.verdict}</b>.</div>` : ''}`
+                }
+                ${g.notes.map((n) => `<div class="small">• ${n}</div>`).join('')}</div>`
+              : ''
+          }</div>`;
+        $('#use')?.addEventListener('click', () => (($('#g').value = num(a.suggest, 1)), draw()));
+      };
+      sheet.addEventListener('input', draw);
+      draw();
+      $('#clear')?.addEventListener('click', () => {
+        state.settings.goalKg = 0;
+        state.settings.goalDate = '';
         save();
         close();
+        render();
+      });
+      $('#ok').onclick = () => {
+        const v = read();
+        if (!(v.height >= 120 && v.height <= 230)) return toast('Escribe tu estatura en centímetros (ej: 165)');
+        if (!(v.weight >= 30 && v.weight <= 300)) return toast('Escribe tu peso de hoy en kilos');
+        if (!v.goalKg) return toast('Escribe tu meta en kilos (o usa la sugerida)');
+        if (advice?.goal?.level === 'bad') return toast(`Elige una meta de al menos ${kg(advice.healthy[0])} kg`);
+        state.settings.body = { height: Math.round(v.height), age: v.age || 0 };
+        state.settings.goalKg = Math.round(v.goalKg * 10) / 10;
+        state.settings.goalDate = v.goalDate;
+        const value = Math.round(v.weight * 10) / 10;
+        if (!last || Math.abs(last.kg - value) >= 0.05) {
+          state.weight = state.weight.filter((w) => w.date !== todayStr());
+          state.weight.push({ id: uid(), date: todayStr(), kg: value });
+        }
+        save();
+        close();
+        toast('Meta guardada');
         render();
       };
     }

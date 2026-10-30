@@ -230,6 +230,7 @@ function notifCard() {
       pushOn
         ? `<div class="small" style="margin-bottom:6px">Activadas en este teléfono ✅</div>
           ${row('meds', '💊', 'Medicamentos', 'A la hora de cada toma.', false)}
+          ${row('meals', '🍽️', 'Comidas del plan', 'A la hora de cada comida de tu dieta, si no la has marcado.', false)}
           ${row('habits', '✅', 'Hábitos', 'Resumen si te falta alguno del día. Los hábitos con hora te avisan a esa hora.', true)}
           ${row('exercise', '💪', 'Rutina del día', 'Los días que tienes rutina.', true)}
           ${row('water', '💧', 'Agua', 'A las 11, 14, 17 y 20 h, si vas atrasado.', false)}

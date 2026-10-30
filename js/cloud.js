@@ -45,7 +45,7 @@ export const pushSupported = () => 'serviceWorker' in navigator && 'PushManager'
 export const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
-export const NOTIF_DEFAULTS = { meds: true, habits: '21:00', exercise: '18:00', water: false, bills: '09:00', details: true };
+export const NOTIF_DEFAULTS = { meds: true, meals: true, habits: '21:00', exercise: '18:00', water: false, bills: '09:00', details: true };
 export const notifCfg = () => ({ ...NOTIF_DEFAULTS, ...(state.settings.notif || {}) });
 const WATER_TIMES = ['11:00', '14:00', '17:00', '20:00'];
 export { WATER_TIMES };
@@ -56,6 +56,12 @@ export function pushSlots() {
   const out = new Map();
   const add = (t, d = null, date = null) => t && out.set(`${t}|${d ? d.join('') : ''}|${date || ''}`, { t, d, date });
   if (n.meds) for (const m of state.meds.list) for (const t of m.times) add(t, m.days || null);
+  if (n.meals) {
+    // comidas del plan con hora: cada hora con los días de la semana en que se repite
+    const byTime = new Map();
+    for (let d = 0; d < 7; d++) for (const m of state.diet.plan[d] || []) if (/^\d{2}:\d{2}$/.test(m.time || '')) (byTime.get(m.time) || byTime.set(m.time, new Set()).get(m.time)).add(d);
+    for (const [t, days] of byTime) add(t, days.size === 7 ? null : [...days].sort());
+  }
   if (n.habits && state.habits.list.length) add(n.habits);
   if (n.habits) for (const h of state.habits.list) if (h.time) add(h.time, h.days?.length === 7 ? null : h.days);
   if (n.exercise && state.exercise.routines.length) {

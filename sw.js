@@ -1,6 +1,6 @@
 // Service worker: deja la app disponible sin internet.
 // Sube VERSION cada vez que cambies archivos para que los teléfonos se actualicen.
-const VERSION = 'gp-v31';
+const VERSION = 'gp-v32';
 const SHELL = [
   './',
   'index.html',
@@ -110,7 +110,7 @@ function compose(st, now = new Date()) {
   const ym = today.slice(0, 7);
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const near = (t) => t && Math.abs(toMin(t) - nowMin) <= 3;
-  const n = { meds: true, habits: '21:00', exercise: '18:00', water: false, bills: '09:00', ...(st.settings?.notif || {}) };
+  const n = { meds: true, meals: true, habits: '21:00', exercise: '18:00', water: false, bills: '09:00', ...(st.settings?.notif || {}) };
   const out = [];
 
   // medicamentos de esta hora que aún no se toman
@@ -123,6 +123,11 @@ function compose(st, now = new Date()) {
       for (const t of m.times || []) if (toMin(t) <= nowMin + 1 && nowMin - toMin(t) <= 5 && !st.meds.log?.[today]?.[m.id]?.[t]) due.push(`${m.name}${m.dose ? ' ' + m.dose : ''}`);
     }
     if (due.length) out.push({ title: '💊 Hora de tu medicamento', body: due.join(', '), url: '#meds' });
+  }
+  // comidas del plan de esta hora que aún no se marcan
+  if (n.meals) {
+    const due = (st.diet?.plan?.[wd] || []).filter((m) => m.time && toMin(m.time) <= nowMin + 1 && nowMin - toMin(m.time) <= 5 && !st.diet.done?.[today]?.[m.id]);
+    if (due.length) out.push({ title: `🍽️ Hora de tu ${due[0].name.toLowerCase()}`, body: due.map((m) => m.desc || m.name).join(' · ').slice(0, 160), url: '#today' });
   }
   // hábitos con hora que aún no se marcan
   if (n.habits) {

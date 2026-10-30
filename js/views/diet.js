@@ -124,8 +124,8 @@ function evalSheet() {
     <form id="ev">
       <label class="field">Sexo</label>
       <div class="seg" id="sex"><button type="button" data-v="f">Mujer</button><button type="button" data-v="m">Hombre</button></div>
-      <div class="three"><label class="field">Edad<input name="age" inputmode="numeric" value="${pr.age || ''}" placeholder="Años"></label>
-        <label class="field">Estatura<input name="height" inputmode="numeric" value="${pr.height || ''}" placeholder="cm"></label>
+      <div class="three"><label class="field">Edad<input name="age" inputmode="numeric" value="${pr.age || state.settings.body?.age || ''}" placeholder="Años"></label>
+        <label class="field">Estatura<input name="height" inputmode="numeric" value="${pr.height || state.settings.body?.height || ''}" placeholder="cm"></label>
         <label class="field">Peso<input name="weight" inputmode="decimal" value="${w?.kg ?? pr.weight ?? ''}" placeholder="kg"></label></div>
       <label class="field">Actividad física<select name="activity">${ACTIVITY.map((a) => `<option value="${a.id}" ${a.id === (pr.activity || 'light') ? 'selected' : ''}>${a.name}: ${a.desc}</option>`).join('')}</select></label>
       <label class="field">Objetivo</label>
@@ -166,6 +166,7 @@ function evalSheet() {
         const apply = (withPlan) => {
           if (withPlan && Object.values(state.diet.plan).some((d) => d.length) && !confirm('Se reemplazará tu plan actual por el plan guía. ¿Continuar? (Si quieres conservarlo, primero usa "Compartir plan").')) return;
           state.settings.profile = { ...data, at: todayStr() };
+          state.settings.body = { height: Math.round(data.height), age: data.age };
           state.settings.kcalGoal = r.kcal;
           state.settings.macroGoals = { p: r.p, c: r.c, f: r.f };
           if ($('#logw').checked) {
