@@ -6,6 +6,18 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.17',
+    date: '2026-11-08',
+    title: 'Gimnasio completo',
+    items: [
+      '<b>🏋️ Registro serie a serie:</b> toca <b>Registrar</b> en un ejercicio y anota las repeticiones y los kilos de cada serie con botones − / + o el teclado de la app. Se precarga con lo que hiciste la última vez y el peso pasa solo a las series siguientes.',
+      '<b>⏱️ Descanso automático:</b> al marcar una serie parte la cuenta regresiva (1 a 3 min, eliges cuánto). Suena y vibra al terminar.',
+      '<b>🏆 Marcas e historial:</b> te avisa cuando superas tu mejor peso; en <b>Mis marcas</b> ves el mejor peso, el 1RM estimado y el gráfico de cada ejercicio.',
+      '<b>📋 Rutinas listas:</b> Full body, Torso/Pierna, Push/Pull/Legs y Glúteo, para empezar en un toque y ajustarlas a tu gusto.',
+      '<b>Series por músculo</b> de la semana y resumen del entrenamiento del día (series, kilos levantados y minutos).',
+    ],
+  },
+  {
     v: '4.16',
     date: '2026-11-08',
     title: 'Agua y peso más fáciles de anotar',

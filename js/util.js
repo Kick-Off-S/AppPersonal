@@ -250,12 +250,15 @@ export function numberPad(container, display, { value = '', decimal = false, max
     const k = e.target.closest('[data-k]')?.dataset.k;
     if (k) press(k);
   };
+  // un solo oyente por teclado (el mismo contenedor se puede reusar para otro valor)
+  if (container._onKey) document.removeEventListener('keydown', container._onKey);
   const onKey = (e) => {
     if (!container.isConnected) return document.removeEventListener('keydown', onKey);
     if (e.target.matches?.('input, textarea, select')) return;
     const k = e.key === 'Backspace' ? 'del' : e.key === '.' || e.key === ',' ? (decimal ? ',' : null) : /^[0-9]$/.test(e.key) ? e.key : null;
     if (k) e.preventDefault(), press(k);
   };
+  container._onKey = onKey;
   document.addEventListener('keydown', onKey);
   draw();
   return {

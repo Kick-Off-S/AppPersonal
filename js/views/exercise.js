@@ -2,7 +2,9 @@
 // como hechos cada día, y actividad extra (caminar, fútbol…) con calorías quemadas estimadas.
 import { state, save, routineSnap } from '../store.js';
 import { latestWeight } from '../calc.js';
-import { esc, uid, num, openSheet, toast, todayStr, addDays, dayLabel, weekdayIndex, shortDate, vibrate, DAYS, DAYS_SHORT } from '../util.js';
+import { esc, uid, num, openSheet, toast, todayStr, addDays, dayLabel, weekdayIndex, shortDate, vibrate, numberPad, DAYS, DAYS_SHORT } from '../util.js';
+import { lineChart } from '../charts.js';
+import { LIBRARY, MUSCLES, muscleOf, restFor, historyOf, bestBefore, lastSession, records, setsByMuscle, sessionOf, TEMPLATES, startRest, stopRest } from '../gym.js';
 
 // MET aproximados (gasto energético) para estimar calorías: kcal = MET × kg × horas.
 const INTENSITY = { suave: { label: 'Suave', met: 3.5 }, moderada: { label: 'Moderada', met: 5 }, alta: { label: 'Alta', met: 7 } };
@@ -23,11 +25,6 @@ export const ACTIVITIES = [
   ['Crossfit / HIIT', 8],
   ['Subir escaleras', 8],
   ['Otro', 5],
-];
-const COMMON = [
-  'Sentadilla', 'Peso muerto', 'Press banca', 'Press militar', 'Remo con barra', 'Jalón al pecho', 'Dominadas', 'Flexiones', 'Fondos',
-  'Zancadas', 'Hip thrust', 'Prensa', 'Curl femoral', 'Extensión de cuádriceps', 'Pantorrillas', 'Curl bíceps', 'Extensión tríceps',
-  'Elevaciones laterales', 'Plancha', 'Abdominales', 'Burpees', 'Saltar la cuerda', 'Trote', 'Bicicleta estática', 'Elíptica', 'Remo (máquina)',
 ];
 
 const ex = () => state.exercise;
@@ -82,15 +79,8 @@ const itemTxt = (it) =>
     .join(' · ');
 const daysTxt = (days) => (days.length === 7 ? 'Todos los días' : days.length ? [...days].sort().map((i) => DAYS[i].slice(0, 2)).join(' · ') : 'Sin día fijo');
 
-// Último peso usado en un ejercicio antes de la fecha (para intentar superarlo).
-function lastKg(rid, itemId, before) {
-  const dates = Object.keys(ex().done).filter((d) => d < before).sort().reverse();
-  for (const d of dates) {
-    const v = ex().done[d]?.[rid]?.[itemId];
-    if (v && v.kg) return { kg: v.kg, date: d };
-  }
-  return null;
-}
+const kgTxt = (v) => num(v, 1);
+const setTxt = (st) => (st.r ? `${kgTxt(st.kg)}×${st.r}` : `${kgTxt(st.kg)} kg`);
 
 let root;
 let date = todayStr();
@@ -120,6 +110,10 @@ function render() {
   const acts = ex().log[date] || [];
   const w = weekSummary();
   const burned = burnedFor(date);
+  const ses = sessionOf(date);
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(addDays(date, -weekdayIndex(date)), i));
+  const muscles = Object.entries(setsByMuscle(weekDays)).sort((a, b) => MUSCLES.indexOf(a[0]) - MUSCLES.indexOf(b[0]));
+  const recs = records().slice(0, 6);
 
   root.innerHTML = `
     <div class="nav"><button class="icon" data-act="prev" aria-label="Día anterior">‹</button>
@@ -131,6 +125,7 @@ function render() {
         <div style="text-align:right"><div class="mid">${w.active}<span class="muted small"> / 7</span></div><div class="small muted">días activos esta semana</div></div></div>
       <div class="wdots">${w.dots}</div>
       <div class="small muted">Semana: ${num(w.mins)} min · ${num(w.kcal)} kcal${state.weight.length ? '' : ' · registra tu peso en Progreso para estimar mejor'}</div>
+      ${ses.sets ? `<div class="small" style="margin-top:6px">💪 ${date === todayStr() ? 'Hoy' : 'Este día'}: <b>${ses.sets} series</b> · ${num(ses.vol)} kg levantados${ses.mins ? ` · ${ses.mins} min` : ''}</div>` : ''}
     </div>
 
     ${
@@ -138,9 +133,25 @@ function render() {
         ? list.map((r) => routineCard(r, wd)).join('')
         : `<div class="card empty"><b>${ex().routines.length ? 'Día de descanso' : 'Aún no tienes rutinas'}</b>
           ${ex().routines.length ? 'No hay rutina programada para este día.' : 'Crea tus rutinas (ej: Pierna los lunes, Brazos los miércoles) y se repetirán cada semana.'}
-          <div class="actions">${ex().routines.length ? '<button data-act="adhoc">Hacer una rutina este día</button>' : '<button class="primary" data-act="newr">+ Crear rutina</button><button data-act="example">Ver ejemplo</button>'}</div></div>`
+          <div class="actions">${ex().routines.length ? '<button data-act="adhoc">Hacer una rutina este día</button>' : '<button class="primary" data-act="templates">Rutinas listas</button><button data-act="newr">+ Crear la mía</button>'}</div></div>`
     }
     ${list.length && ex().routines.length > list.length ? '<button class="ghost block" data-act="adhoc">+ Hacer otra rutina este día</button>' : ''}
+
+    ${
+      muscles.length
+        ? `<div class="card"><h2>Series por músculo · esta semana</h2><div class="mchips">${muscles.map(([m, n]) => `<span class="mchip ${n >= 10 ? 'ok' : ''}">${m} <b>${n}</b></span>`).join('')}</div>
+          <div class="small muted" style="margin-top:6px">Como referencia, entre 10 y 20 series por músculo a la semana suele funcionar bien para ganar masa muscular.</div></div>`
+        : ''
+    }
+
+    ${
+      recs.length
+        ? `<div class="card"><h2>Mis marcas</h2>${recs
+            .map((x) => `<div class="item" data-act="hist" data-n="${esc(x.name)}"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${x.sessions} ${x.sessions === 1 ? 'sesión' : 'sesiones'} · última ${shortDate(x.last)}</div></div>
+              <div style="text-align:right"><div class="amount">${kgTxt(x.best)} kg</div><div class="s muted">1RM ~${kgTxt(x.rm)}</div></div></div>`)
+            .join('')}</div>`
+        : ''
+    }
 
     <div class="card">
       <div class="row between"><h2 style="margin:0">Actividad extra</h2><button class="sm" data-act="addact">+ Agregar</button></div>
@@ -158,7 +169,7 @@ function render() {
     </div>
 
     <div class="card">
-      <div class="row between"><h2 style="margin:0">Mis rutinas</h2><button class="sm" data-act="newr">+ Rutina</button></div>
+      <div class="row between"><h2 style="margin:0">Mis rutinas</h2><div class="row" style="gap:6px"><button class="sm ghost" data-act="templates">Rutinas listas</button><button class="sm" data-act="newr">+ Rutina</button></div></div>
       ${
         ex().routines.length
           ? ex()
@@ -183,11 +194,12 @@ function routineCard(r, wd) {
     ${r.items
       .map((it) => {
         const d = done[it.id];
-        const kgNow = d?.kg || it.kg;
+        const sets = d?.sets || [];
+        const sub = sets.length ? `${sets.length} ${sets.length === 1 ? 'serie' : 'series'}: ${sets.map(setTxt).join(' · ')}` : itemTxt({ ...it, kg: d?.kg || it.kg });
         return `<div class="item ${d ? 'done' : ''}">
         <button class="check ${d ? 'on' : ''}" data-act="tick" data-rid="${r.id}" data-id="${it.id}" aria-label="Marcar como hecho" aria-pressed="${!!d}">✓</button>
-        <div class="grow" data-act="detail" data-rid="${r.id}" data-id="${it.id}"><div class="t">${esc(it.name)}</div><div class="s">${esc(itemTxt({ ...it, kg: kgNow }))}${it.note ? ' · ' + esc(it.note) : ''}</div></div>
-        ${it.kg ? '<span class="muted small">✎</span>' : ''}</div>`;
+        <div class="grow" data-act="detail" data-rid="${r.id}" data-id="${it.id}"><div class="t">${esc(it.name)}</div><div class="s">${esc(sub)}${it.note ? ' · ' + esc(it.note) : ''}</div></div>
+        <button type="button" class="ghost sm sm-btn" data-act="detail" data-rid="${r.id}" data-id="${it.id}">Registrar ›</button></div>`;
       })
       .join('') || '<div class="small muted">Esta rutina no tiene ejercicios. Edítala en Mis rutinas.</div>'}
     ${!scheduled ? `<button class="ghost block sm" data-act="unadhoc" data-rid="${r.id}" style="margin-top:6px">Quitar de este día</button>` : ''}
@@ -209,7 +221,7 @@ function onClick(e) {
     keepSnap(r);
     if (map[id]) delete map[id];
     else {
-      map[id] = it.kg ? { kg: it.kg } : {};
+      map[id] = { n: it.name, ...(it.kg ? { kg: it.kg } : {}) };
       vibrate();
       const { n, total } = routineProgress(date, r);
       if (n === total) toast(`¡${r.name} completa! 💪`);
@@ -219,11 +231,13 @@ function onClick(e) {
     const r = ex().routines.find((x) => x.id === rid);
     const map = ((ex().done[date] ||= {})[rid] ||= {});
     keepSnap(r);
-    for (const it of r.items) map[it.id] ||= it.kg ? { kg: it.kg } : {};
+    for (const it of r.items) map[it.id] ||= { n: it.name, ...(it.kg ? { kg: it.kg } : {}) };
     vibrate();
     toast(`¡${r.name} completa! 💪`);
     save();
-  } else if (act === 'detail') return detailSheet(rid, id);
+  } else if (act === 'detail') return logSheet(rid, id);
+  else if (act === 'hist') return historySheet(t.dataset.n);
+  else if (act === 'templates') return templatesSheet();
   else if (act === 'adhoc') return adhocSheet();
   else if (act === 'unadhoc') {
     delete ex().done[date]?.[rid];
@@ -236,37 +250,182 @@ function onClick(e) {
     save();
   } else if (act === 'newr') return routineSheet();
   else if (act === 'editr') return routineSheet(ex().routines.find((r) => r.id === id));
-  else if (act === 'example') return loadExample();
   else return;
   render();
 }
 
-// Peso / reps de hoy en un ejercicio: actualiza la rutina (para la próxima vez) y lo marca como hecho.
-function detailSheet(rid, id) {
+// Registro serie a serie: reps y kg de cada serie, precargados con la última vez. Al marcar una serie
+// parte el descanso. Todo con botones y el teclado de la app (el del sistema, dentro de una hoja, falla
+// en el teléfono).
+function logSheet(rid, id) {
   const r = ex().routines.find((x) => x.id === rid);
   const it = r.items.find((x) => x.id === id);
-  const prev = lastKg(rid, id, date);
-  const cur = doneOf(date, rid)[id];
+  const prev = lastSession(it.name, date);
+  const best = bestBefore(it.name, date);
+  const logged = doneOf(date, rid)[id]?.sets || [];
+  const planReps = parseInt(it.reps, 10) || (it.mins ? 0 : 10);
+  const prefill = (i) => {
+    const p = prev?.sets[i] || prev?.sets[prev.sets.length - 1];
+    return { r: p?.r || planReps, kg: p?.kg ?? it.kg ?? 0 };
+  };
+  let rows = Array.from({ length: Math.max(it.sets || 3, logged.length) }, (_, i) => (logged[i] ? { ...logged[i], done: true } : { ...prefill(i), done: false }));
+  let rest = restFor(it);
+  const muscle = muscleOf(it.name);
   openSheet(
-    `<h3>${esc(it.name)}</h3>
-    <p class="muted small" style="margin-top:0">${esc(itemTxt(it)) || 'Sin detalle'}${prev ? ` · Última vez: <b>${num(prev.kg, 1)} kg</b> (${shortDate(prev.date)})` : ''}</p>
-    <div class="two"><label class="field">Peso usado (kg)<input id="kg" inputmode="decimal" value="${cur?.kg || it.kg ? String(cur?.kg || it.kg).replace('.', ',') : ''}" placeholder="Sin peso"></label>
-      <label class="field">Repeticiones<input id="reps" value="${esc(it.reps || '')}" placeholder="Ej: 12"></label></div>
-    <p class="small muted">Se guarda en la rutina para la próxima vez.</p>
-    <div class="actions"><button class="ghost" data-close>Cancelar</button><button class="primary" id="ok">Guardar y marcar hecho</button></div>`,
+    `<div class="row between"><h3>${esc(it.name)}</h3>${prev || best ? '<button class="ghost sm" id="hist">Historial</button>' : ''}</div>
+    <div class="small muted" style="margin-top:-4px">${[itemTxt(it) ? 'Plan: ' + esc(itemTxt(it)) : '', muscle, it.note ? esc(it.note) : ''].filter(Boolean).join(' · ')}</div>
+    ${prev ? `<div class="small" style="margin-top:4px">Última vez (${shortDate(prev.d)}): ${prev.sets.map(setTxt).join(' · ')}</div>` : ''}
+    ${best ? `<div class="small">Tu mejor marca: <b>${kgTxt(best)} kg</b></div>` : ''}
+    <div class="sethead"><span>Serie</span><span>Reps</span><span>Kg</span><span></span></div>
+    <div id="rows" class="setrows"></div>
+    <button class="ghost block sm" id="addset">+ Agregar serie</button>
+    <div id="padwrap" class="padwrap" hidden><div class="row between small"><span id="padlbl"></span><button class="ghost sm" id="padx">Listo</button></div><div id="pad"></div></div>
+    <div class="row" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><span class="small muted">Descanso entre series</span>
+      <div class="seg" id="rest" style="margin:0;flex:1">${[60, 90, 120, 180].map((v) => `<button type="button" data-v="${v}">${v < 120 ? v + ' s' : v / 60 + ' min'}</button>`).join('')}</div></div>
+    <div class="actions">${logged.length ? '<button class="ghost" id="clear">Borrar registro</button>' : ''}<button class="primary" data-close>Listo</button></div>`,
     (sheet, close) => {
-      sheet.querySelector('#ok').onclick = () => {
-        const kg = parseFloat(sheet.querySelector('#kg').value.replace(',', '.')) || 0;
-        it.kg = kg;
-        it.reps = sheet.querySelector('#reps').value.trim();
-        ((ex().done[date] ||= {})[rid] ||= {})[id] = kg ? { kg } : {};
+      const $ = (q) => sheet.querySelector(q);
+      const persist = () => {
+        const done = rows.filter((x) => x.done);
+        const map = ((ex().done[date] ||= {})[rid] ||= {});
+        if (done.length) {
+          map[id] = { n: it.name, kg: Math.max(...done.map((x) => x.kg)), sets: done.map(({ r: reps, kg, t }) => ({ r: reps, kg, ...(t ? { t } : {}) })) };
+          if (map[id].kg) it.kg = map[id].kg; // la próxima vez parte de aquí
+        } else delete map[id];
         keepSnap(r);
-        if (prev && kg > prev.kg) toast(`¡Nueva marca! +${num(kg - prev.kg, 1)} kg 🏆`);
+        save();
+      };
+      const draw = () => {
+        $('#rows').innerHTML = rows
+          .map(
+            (x, i) => `<div class="setrow ${x.done ? 'on' : ''}"><span class="sn">${i + 1}</span>
+            <div class="stp"><button type="button" data-f="r" data-i="${i}" data-d="-1" aria-label="Menos repeticiones">−</button><b class="sv" data-f="r" data-i="${i}">${x.r}</b><button type="button" data-f="r" data-i="${i}" data-d="1" aria-label="Más repeticiones">+</button></div>
+            <div class="stp"><button type="button" data-f="kg" data-i="${i}" data-d="-1" aria-label="Menos peso">−</button><b class="sv" data-f="kg" data-i="${i}">${kgTxt(x.kg)}</b><button type="button" data-f="kg" data-i="${i}" data-d="1" aria-label="Más peso">+</button></div>
+            <button type="button" class="check ${x.done ? 'on' : ''}" data-done="${i}" aria-label="Serie ${i + 1} hecha" aria-pressed="${x.done}">✓</button></div>`
+          )
+          .join('');
+        sheet.querySelectorAll('#rest button').forEach((b) => b.classList.toggle('sel', +b.dataset.v === rest));
+      };
+      const closePad = () => ($('#padwrap').hidden = true);
+      // Cambiar reps o kg de una serie lo copia a las siguientes que aún no se marcan y tenían el
+      // mismo valor (así basta con escribir el peso una vez).
+      const setVal = (i, f, v) => {
+        const old = rows[i][f];
+        rows[i][f] = v;
+        for (let j = i + 1; j < rows.length; j++)
+          if (!rows[j].done && rows[j][f] === old) {
+            rows[j][f] = v;
+            const el = sheet.querySelector(`.sv[data-f="${f}"][data-i="${j}"]`);
+            if (el) el.textContent = f === 'kg' ? kgTxt(v) : v;
+          }
+        if (rows[i].done) persist();
+      };
+      $('#rows').onclick = (e) => {
+        const b = e.target.closest('[data-d], .sv, [data-done]');
+        if (!b) return;
+        if (b.dataset.done !== undefined) {
+          const x = rows[+b.dataset.done];
+          x.done = !x.done;
+          closePad();
+          if (x.done) {
+            x.t = Date.now();
+            vibrate();
+            const others = Math.max(0, ...rows.filter((y) => y.done && y !== x).map((y) => y.kg));
+            if (x.kg > best && best && x.kg > others) toast(`🏆 ¡Nueva marca! ${kgTxt(x.kg)} kg en ${it.name}`);
+            if (rows.every((y) => y.done)) stopRest(), toast(`${it.name} listo 💪`);
+            else startRest(rest, it.name);
+          } else delete x.t;
+          persist();
+          return draw();
+        }
+        const i = +b.dataset.i;
+        const f = b.dataset.f;
+        if (b.dataset.d) {
+          const step = f === 'kg' ? 2.5 : 1;
+          setVal(i, f, Math.max(0, Math.round((rows[i][f] + step * +b.dataset.d) * 10) / 10));
+          b.parentElement.querySelector('.sv').textContent = f === 'kg' ? kgTxt(rows[i][f]) : rows[i][f];
+          return;
+        }
+        // tocar el número: escribirlo con el teclado de la app
+        sheet.querySelectorAll('.sv.editing').forEach((v) => v.classList.remove('editing'));
+        b.classList.add('editing');
+        $('#padwrap').hidden = false;
+        $('#padlbl').textContent = `Serie ${i + 1} · ${f === 'kg' ? 'kilos' : 'repeticiones'}`;
+        numberPad($('#pad'), b, {
+          value: rows[i][f],
+          decimal: f === 'kg',
+          max: f === 'kg' ? 500 : 100,
+          onChange: (v) => setVal(i, f, v),
+        });
+        setTimeout(() => $('#padwrap').scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+      };
+      $('#padx').onclick = () => (closePad(), draw());
+      $('#addset').onclick = () => {
+        const last = rows[rows.length - 1] || prefill(0);
+        rows.push({ r: last.r, kg: last.kg, done: false });
+        closePad();
+        draw();
+      };
+      $('#rest').onclick = (e) => {
+        const b = e.target.closest('[data-v]');
+        if (!b) return;
+        rest = +b.dataset.v;
+        it.rest = rest;
+        save();
+        draw();
+      };
+      $('#clear')?.addEventListener('click', () => {
+        if (!confirm('¿Borrar las series registradas hoy en este ejercicio?')) return;
+        rows = rows.map((x) => ({ ...x, done: false }));
+        persist();
+        stopRest();
+        draw();
+      });
+      $('#hist')?.addEventListener('click', () => historySheet(it.name));
+      draw();
+    },
+    () => render()
+  );
+}
+
+// Historial de un ejercicio: mejor peso por sesión (gráfico), marcas y últimas sesiones.
+function historySheet(name) {
+  const h = historyOf(name);
+  const best = Math.max(0, ...h.map((x) => x.best));
+  const rm = Math.max(0, ...h.map((x) => x.rm));
+  const pts = h.filter((x) => x.best).map((x) => ({ date: x.d, v: x.best }));
+  openSheet(
+    `<h3>${esc(name)}</h3>
+    <div class="macros m3" style="margin-top:4px"><div><b>${kgTxt(best)} kg</b><span>Mejor peso</span></div><div><b>${kgTxt(rm)} kg</b><span>1RM estimado</span></div><div><b>${h.length}</b><span>Sesiones</span></div></div>
+    ${pts.length > 1 ? `<div style="margin-top:8px">${lineChart({ points: pts, fmt: (v) => kgTxt(v), label: `Mejor peso por sesión en ${name}` })}</div>` : ''}
+    <div style="margin-top:8px">${[...h]
+      .reverse()
+      .slice(0, 12)
+      .map((x) => `<div class="item"><div class="grow"><div class="t">${shortDate(x.d)}</div><div class="s">${x.sets.map(setTxt).join(' · ')}</div></div><div class="amount small">${x.vol ? num(x.vol) + ' kg' : ''}</div></div>`)
+      .join('') || '<div class="small muted">Aún no hay series registradas.</div>'}</div>
+    <p class="small muted">El 1RM es una estimación del peso máximo para una repetición (fórmula de Epley, con series de hasta 12 repeticiones). No lo pruebes sin supervisión.</p>
+    <div class="actions"><button class="primary" data-close>Listo</button></div>`
+  );
+}
+
+// Rutinas listas para usar (se agregan a las tuyas y se pueden editar).
+function templatesSheet() {
+  openSheet(
+    `<h3>Rutinas listas</h3>
+    <p class="small muted" style="margin-top:0">Elige una para empezar: se agrega a tus rutinas con sus días, ejercicios, series y repeticiones. Después la ajustas a tu gusto.${ex().routines.length ? ' Tus rutinas actuales se mantienen.' : ''}</p>
+    ${TEMPLATES.map((t) => `<button class="block tpl" data-t="${t.id}"><b>${t.name}</b><small>${t.desc}</small></button>`).join('')}
+    <div class="actions"><button class="ghost" data-close>Cancelar</button></div>`,
+    (sheet, close) =>
+      sheet.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-t]');
+        if (!b) return;
+        const t = TEMPLATES.find((x) => x.id === b.dataset.t);
+        for (const rt of t.routines()) ex().routines.push({ id: uid(), intensity: 'moderada', ...rt });
         save();
         close();
+        toast(`${t.name} agregada 💪`);
         render();
-      };
-    }
+      })
   );
 }
 
@@ -347,13 +506,14 @@ function routineSheet(r) {
     <div id="items" class="ing"></div>
     <div id="itemform" class="pk-box" hidden>
       <label class="field">Ejercicio<input id="iname" list="common" maxlength="40" placeholder="Ej: Sentadilla" autocomplete="off"></label>
-      <datalist id="common">${COMMON.map((c) => `<option value="${c}">`).join('')}</datalist>
+      <datalist id="common">${LIBRARY.map((e) => `<option value="${e.name}">${e.m}</option>`).join('')}</datalist>
       <div class="four"><label class="field">Series<input id="isets" inputmode="numeric" placeholder="Ej: 4"></label>
         <label class="field">Reps<input id="ireps" inputmode="numeric" placeholder="Ej: 12"></label>
         <label class="field">Kg<input id="ikg" inputmode="decimal" placeholder="Opc."></label>
         <label class="field">Min<input id="imins" inputmode="numeric" placeholder="Opc."></label></div>
       <p class="small muted" style="margin:6px 0 0">Para pesas usa series, reps y kg; para cardio, los minutos.</p>
-      <label class="field">Nota (opcional)<input id="inote" maxlength="60" placeholder="Ej: 30 s, cada pierna, descanso 60 s" autocomplete="off"></label>
+      <div class="two"><label class="field">Descanso<select id="irest"><option value="">Automático</option><option value="45">45 s</option><option value="60">60 s</option><option value="90">90 s</option><option value="120">2 min</option><option value="180">3 min</option></select></label>
+        <label class="field">Nota (opcional)<input id="inote" maxlength="60" placeholder="Ej: cada pierna, 30 s" autocomplete="off"></label></div>
       <div class="actions"><button type="button" class="ghost" id="icancel">Cancelar</button><button type="button" class="primary" id="iok">Agregar</button></div>
     </div>
     <button type="button" class="block" id="additem">+ Agregar ejercicio</button>
@@ -392,6 +552,7 @@ function routineSheet(r) {
       const openForm = (it) => {
         editId = it?.id || null;
         for (const f of fields) $('#i' + f).value = it?.[f] ? String(it[f]).replace(/\./g, ',') : '';
+        $('#irest').value = it?.rest ? String(it.rest) : '';
         $('#iok').textContent = it ? 'Actualizar' : 'Agregar';
         $('#itemform').hidden = false;
         $('#additem').hidden = true;
@@ -413,6 +574,7 @@ function routineSheet(r) {
           kg: parseFloat($('#ikg').value.replace(',', '.')) || 0,
           mins: parseInt($('#imins').value, 10) || 0,
           note: $('#inote').value.trim(),
+          rest: parseInt($('#irest').value, 10) || 0,
         };
         const wasEdit = !!editId;
         if (editId) items = items.map((x) => (x.id === editId ? { ...x, ...data } : x));
@@ -467,30 +629,4 @@ function routineSheet(r) {
       });
     }
   );
-}
-
-function loadExample() {
-  const mk = (name, sets, reps, extra = {}) => ({ id: uid(), name, sets, reps, kg: 0, mins: 0, note: '', ...extra });
-  ex().routines.push(
-    {
-      id: uid(),
-      name: 'Tren superior',
-      days: [0, 3],
-      mins: 50,
-      intensity: 'moderada',
-      items: [mk('Press banca', 4, '10'), mk('Remo con barra', 4, '10'), mk('Press militar', 3, '12'), mk('Curl bíceps', 3, '12'), mk('Extensión tríceps', 3, '12')],
-    },
-    {
-      id: uid(),
-      name: 'Tren inferior y core',
-      days: [1, 4],
-      mins: 50,
-      intensity: 'moderada',
-      items: [mk('Sentadilla', 4, '12'), mk('Peso muerto', 4, '8'), mk('Zancadas', 3, '10', { note: 'cada pierna' }), mk('Hip thrust', 3, '12'), mk('Plancha', 3, '', { note: '30 s' })],
-    },
-    { id: uid(), name: 'Cardio', days: [5], mins: 40, intensity: 'alta', items: [mk('Trote', 0, '', { mins: 30 }), mk('Abdominales', 3, '20')] }
-  );
-  save();
-  toast('Ejemplo cargado: edítalo a tu medida');
-  render();
 }

@@ -473,3 +473,32 @@ body.report-open { overflow: hidden; }
 .wa-val b.fresh { color: var(--primary); }
 .numpad { grid-template-columns: repeat(3, 1fr); }
 #sizes { justify-content: center; margin-bottom: 4px; }
+/* gimnasio: registro serie a serie */
+.sethead, .setrow { display: grid; grid-template-columns: 30px 1fr 1fr 40px; gap: 8px; align-items: center; }
+.sethead { margin-top: 12px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); text-align: center; }
+.sethead span:first-child { text-align: left; }
+.setrows { display: grid; gap: 6px; margin: 6px 0 8px; }
+.setrow { padding: 6px; border-radius: 12px; background: var(--bg); }
+.setrow.on { background: color-mix(in srgb, var(--ok) 13%, var(--card)); }
+.setrow .sn { font-weight: 700; text-align: center; color: var(--muted); }
+.setrow .check { width: 38px; height: 38px; min-height: 38px; }
+.stp { display: grid; grid-template-columns: 34px 1fr 34px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.stp button { min-height: 40px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--primary); font-size: 20px; font-weight: 700; }
+.stp .sv { text-align: center; font-size: 17px; font-variant-numeric: tabular-nums; cursor: pointer; padding: 8px 0; }
+.stp .sv.editing { color: var(--primary); text-decoration: underline; }
+.padwrap { margin: 4px 0 6px; padding: 8px; border-radius: 12px; background: color-mix(in srgb, var(--primary) 6%, var(--card)); }
+.sm-btn { font-size: 12px; font-weight: 600; color: var(--primary); white-space: nowrap; }
+button.tpl { display: grid; gap: 2px; text-align: left; margin-top: 8px; padding: 12px 14px; height: auto; }
+button.tpl small { font-weight: 400; color: var(--muted); font-size: 13px; }
+.macros.m3 { grid-template-columns: repeat(3, 1fr); }
+/* temporizador de descanso: sobre la barra inferior */
+#rest-bar { position: fixed; z-index: 30; left: 12px; right: 12px; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 10px); display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 14px; background: var(--text); color: var(--card); box-shadow: var(--shadow); }
+#rest-bar .rb-l { flex: 1; font-size: 12px; opacity: .8; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#rest-bar .rb-t { font-size: 20px; font-variant-numeric: tabular-nums; }
+#rest-bar button { min-height: 34px; padding: 0 10px; }
+#rest-bar.done { background: var(--ok); }
+body.modal-open #rest-bar { z-index: 25; bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 10px); }
+.mchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 10px; border-radius: 99px; font-size: 13px; background: var(--bg); border: 1px solid var(--line); }
+.mchip.ok { background: color-mix(in srgb, var(--ok) 13%, var(--card)); border-color: transparent; }
+button.ghost.sm-btn { color: var(--primary); padding: 0 6px; flex: none; }

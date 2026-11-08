@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.16';
+export const APP_VERSION = '4.17';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -210,7 +210,7 @@ function normalize(o) {
   ex.routines = objs(ex.routines).map((r) => {
     r.days = dayList(r.days) || [];
     r.items = objs(r.items).map((it) => {
-      for (const k of ['sets', 'kg', 'mins']) it[k] = pos(it[k]);
+      for (const k of ['sets', 'kg', 'mins', 'rest']) it[k] = pos(it[k]);
       return it;
     });
     r.mins = pos(r.mins) || 45;
@@ -218,6 +218,11 @@ function normalize(o) {
     return r;
   });
   for (const k of ['done', 'snap']) if (!isObj(ex[k])) ex[k] = {};
+  // series registradas: { r: reps, kg, t: hora }
+  for (const byR of Object.values(ex.done))
+    for (const items of Object.values(isObj(byR) ? byR : {}))
+      for (const v of Object.values(isObj(items) ? items : {}))
+        if (isObj(v) && v.sets !== undefined) v.sets = objs(v.sets).slice(0, 50).map((s) => ({ r: Math.round(pos(s.r)), kg: pos(s.kg), ...(s.t ? { t: pos(s.t) } : {}) }));
   for (const [d, list] of Object.entries(ex.log)) ex.log[d] = objs(list).map((a) => ((a.mins = pos(a.mins)), (a.kcal = pos(a.kcal)), a));
   o.habits.list = objs(o.habits.list).map((h) => {
     h.days = dayList(h.days) || [0, 1, 2, 3, 4, 5, 6];
