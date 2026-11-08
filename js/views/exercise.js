@@ -4,7 +4,8 @@ import { state, save, routineSnap } from '../store.js';
 import { latestWeight } from '../calc.js';
 import { esc, uid, num, openSheet, toast, todayStr, addDays, dayLabel, weekdayIndex, shortDate, vibrate, numberPad, DAYS, DAYS_SHORT } from '../util.js';
 import { lineChart } from '../charts.js';
-import { LIBRARY, MUSCLES, muscleOf, restFor, historyOf, bestBefore, lastSession, records, setsByMuscle, sessionOf, TEMPLATES, startRest, stopRest } from '../gym.js';
+import { LIBRARY, MUSCLES, muscleOf, restFor, historyOf, bestBefore, lastSession, records, setsByMuscle, sessionOf, TEMPLATES, startRest, stopRest, SET_TYPES, nextType, startSession, finishSession, cancelSession, streak, monthCount } from '../gym.js';
+import { key } from '../merchants.js';
 
 // MET aproximados (gasto energético) para estimar calorías: kcal = MET × kg × horas.
 const INTENSITY = { suave: { label: 'Suave', met: 3.5 }, moderada: { label: 'Moderada', met: 5 }, alta: { label: 'Alta', met: 7 } };
@@ -80,16 +81,39 @@ const itemTxt = (it) =>
 const daysTxt = (days) => (days.length === 7 ? 'Todos los días' : days.length ? [...days].sort().map((i) => DAYS[i].slice(0, 2)).join(' · ') : 'Sin día fijo');
 
 const kgTxt = (v) => num(v, 1);
-const setTxt = (st) => (st.r ? `${kgTxt(st.kg)}×${st.r}` : `${kgTxt(st.kg)} kg`);
+const TYPE_SHORT = { w: 'C ', d: 'D ', f: 'F ' }; // calentamiento, dropset, al fallo
+const setTxt = (st) => (TYPE_SHORT[st.k] || '') + (st.r ? `${kgTxt(st.kg)}×${st.r}` : `${kgTxt(st.kg)} kg`);
 
 let root;
 let date = todayStr();
 
+let clockInt = null;
 export function mount(el) {
   root = el;
   date = todayStr();
   root.onclick = onClick;
   render();
+  // cronómetro del entrenamiento: se actualiza cada segundo mientras esta pantalla esté abierta
+  clearInterval(clockInt);
+  clockInt = setInterval(() => {
+    if (!root.isConnected || root !== el) return clearInterval(clockInt);
+    const c = document.getElementById('clock');
+    if (c) c.textContent = clockTxt(sessionOf(date).start);
+  }, 1000);
+}
+const clockTxt = (start) => {
+  const s = Math.max(0, Math.floor((Date.now() - start) / 1000));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, '0');
+  return `${h ? h + ':' : ''}${mm}:${String(s % 60).padStart(2, '0')}`;
+};
+const isToday = () => date === todayStr();
+// Al registrar algo hoy, el cronómetro parte solo si no estaba corriendo.
+function ensureSession() {
+  if (!isToday() || sessionOf(date).active) return;
+  const wasFinished = sessionOf(date).finished;
+  startSession(date);
+  toast(wasFinished ? '⏱ Seguimos con el entrenamiento' : '⏱ Entrenamiento iniciado');
 }
 
 function weekSummary() {
@@ -114,6 +138,17 @@ function render() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(addDays(date, -weekdayIndex(date)), i));
   const muscles = Object.entries(setsByMuscle(weekDays)).sort((a, b) => MUSCLES.indexOf(a[0]) - MUSCLES.indexOf(b[0]));
   const recs = records().slice(0, 6);
+  const racha = streak(todayStr());
+  const sesBlock = !isToday()
+    ? ''
+    : ses.active
+      ? `<div class="sesbar"><span class="sb-ic">⏱</span><div class="grow"><b id="clock">${clockTxt(ses.start)}</b><div class="small">${ses.exercises} ${ses.exercises === 1 ? 'ejercicio' : 'ejercicios'} · ${ses.sets} series · ${num(ses.vol)} kg</div></div>
+        <button class="primary" data-act="finish">Terminar</button></div>`
+      : ses.finished
+        ? `<div class="banner sesdone">✅ Entrenamiento terminado: <b>${ses.mins} min</b> · ${ses.exercises} ${ses.exercises === 1 ? 'ejercicio' : 'ejercicios'} · ${ses.sets} ${ses.sets === 1 ? 'serie' : 'series'} · ${num(ses.vol)} kg <button class="ghost sm" data-act="resume">Seguir entrenando</button></div>`
+        : list.length
+          ? '<button class="primary block start-btn" data-act="start">▶ Empezar entrenamiento</button>'
+          : '';
 
   root.innerHTML = `
     <div class="nav"><button class="icon" data-act="prev" aria-label="Día anterior">‹</button>
@@ -125,8 +160,11 @@ function render() {
         <div style="text-align:right"><div class="mid">${w.active}<span class="muted small"> / 7</span></div><div class="small muted">días activos esta semana</div></div></div>
       <div class="wdots">${w.dots}</div>
       <div class="small muted">Semana: ${num(w.mins)} min · ${num(w.kcal)} kcal${state.weight.length ? '' : ' · registra tu peso en Progreso para estimar mejor'}</div>
-      ${ses.sets ? `<div class="small" style="margin-top:6px">💪 ${date === todayStr() ? 'Hoy' : 'Este día'}: <b>${ses.sets} series</b> · ${num(ses.vol)} kg levantados${ses.mins ? ` · ${ses.mins} min` : ''}</div>` : ''}
+      ${ses.sets && !isToday() ? `<div class="small" style="margin-top:6px">💪 Este día: <b>${ses.sets} series</b> · ${num(ses.vol)} kg levantados${ses.mins ? ` · ${ses.mins} min` : ''}</div>` : ''}
+      <div class="streak"><span>🔥 Racha: <b>${racha} ${racha === 1 ? 'entrenamiento' : 'entrenamientos'}</b></span><span class="muted">${monthCount(date.slice(0, 7))} este mes</span></div>
     </div>
+
+    ${sesBlock}
 
     ${
       list.length
@@ -180,6 +218,7 @@ function render() {
               .join('')
           : '<div class="small muted" style="margin-top:8px">Cada rutina tiene sus ejercicios (series, repeticiones, peso o minutos) y los días en que la haces.</div>'
       }
+      <button class="ghost block sm" data-act="library" style="margin-top:6px">📚 Biblioteca de ejercicios por músculo</button>
     </div>`;
 }
 
@@ -202,7 +241,8 @@ function routineCard(r, wd) {
         <button type="button" class="ghost sm sm-btn" data-act="detail" data-rid="${r.id}" data-id="${it.id}">Registrar ›</button></div>`;
       })
       .join('') || '<div class="small muted">Esta rutina no tiene ejercicios. Edítala en Mis rutinas.</div>'}
-    ${!scheduled ? `<button class="ghost block sm" data-act="unadhoc" data-rid="${r.id}" style="margin-top:6px">Quitar de este día</button>` : ''}
+    <button class="ghost block sm" data-act="addex" data-rid="${r.id}" style="margin-top:6px">+ Agregar ejercicio de la biblioteca</button>
+    ${!scheduled ? `<button class="ghost block sm" data-act="unadhoc" data-rid="${r.id}">Quitar de este día</button>` : ''}
   </div>`;
 }
 
@@ -221,6 +261,7 @@ function onClick(e) {
     keepSnap(r);
     if (map[id]) delete map[id];
     else {
+      ensureSession();
       map[id] = { n: it.name, ...(it.kg ? { kg: it.kg } : {}) };
       vibrate();
       const { n, total } = routineProgress(date, r);
@@ -231,6 +272,7 @@ function onClick(e) {
     const r = ex().routines.find((x) => x.id === rid);
     const map = ((ex().done[date] ||= {})[rid] ||= {});
     keepSnap(r);
+    ensureSession();
     for (const it of r.items) map[it.id] ||= { n: it.name, ...(it.kg ? { kg: it.kg } : {}) };
     vibrate();
     toast(`¡${r.name} completa! 💪`);
@@ -238,6 +280,25 @@ function onClick(e) {
   } else if (act === 'detail') return logSheet(rid, id);
   else if (act === 'hist') return historySheet(t.dataset.n);
   else if (act === 'templates') return templatesSheet();
+  else if (act === 'start') {
+    startSession(date);
+    vibrate();
+    toast('⏱ ¡A entrenar! Registra cada serie con Registrar ›');
+  } else if (act === 'resume') ensureSession();
+  else if (act === 'finish') return finishSheet();
+  else if (act === 'library') return librarySheet();
+  else if (act === 'addex') {
+    const r = ex().routines.find((x) => x.id === rid);
+    return librarySheet({
+      title: `Agregar a ${r.name}`,
+      onPick: (name) => {
+        r.items.push({ id: uid(), name, sets: muscleOf(name) === 'Cardio' ? 0 : 3, reps: muscleOf(name) === 'Cardio' ? '' : '10', kg: 0, mins: muscleOf(name) === 'Cardio' ? 20 : 0, note: '' });
+        save();
+        toast(`${name} agregado a ${r.name}`);
+        render();
+      },
+    });
+  }
   else if (act === 'adhoc') return adhocSheet();
   else if (act === 'unadhoc') {
     delete ex().done[date]?.[rid];
@@ -266,7 +327,7 @@ function logSheet(rid, id) {
   const planReps = parseInt(it.reps, 10) || (it.mins ? 0 : 10);
   const prefill = (i) => {
     const p = prev?.sets[i] || prev?.sets[prev.sets.length - 1];
-    return { r: p?.r || planReps, kg: p?.kg ?? it.kg ?? 0 };
+    return { r: p?.r || planReps, kg: p?.kg ?? it.kg ?? 0, ...(prev?.sets[i]?.k ? { k: prev.sets[i].k } : {}) };
   };
   let rows = Array.from({ length: Math.max(it.sets || 3, logged.length) }, (_, i) => (logged[i] ? { ...logged[i], done: true } : { ...prefill(i), done: false }));
   let rest = restFor(it);
@@ -277,6 +338,7 @@ function logSheet(rid, id) {
     ${prev ? `<div class="small" style="margin-top:4px">Última vez (${shortDate(prev.d)}): ${prev.sets.map(setTxt).join(' · ')}</div>` : ''}
     ${best ? `<div class="small">Tu mejor marca: <b>${kgTxt(best)} kg</b></div>` : ''}
     <div class="sethead"><span>Serie</span><span>Reps</span><span>Kg</span><span></span></div>
+    <div class="small muted" style="margin-top:2px">Toca el número de la serie para cambiar su tipo: <b>C</b> calentamiento · <b>D</b> dropset · <b>F</b> al fallo.</div>
     <div id="rows" class="setrows"></div>
     <button class="ghost block sm" id="addset">+ Agregar serie</button>
     <div id="padwrap" class="padwrap" hidden><div class="row between small"><span id="padlbl"></span><button class="ghost sm" id="padx">Listo</button></div><div id="pad"></div></div>
@@ -289,16 +351,19 @@ function logSheet(rid, id) {
         const done = rows.filter((x) => x.done);
         const map = ((ex().done[date] ||= {})[rid] ||= {});
         if (done.length) {
-          map[id] = { n: it.name, kg: Math.max(...done.map((x) => x.kg)), sets: done.map(({ r: reps, kg, t }) => ({ r: reps, kg, ...(t ? { t } : {}) })) };
+          const work = done.filter((x) => x.k !== 'w');
+          map[id] = { n: it.name, kg: Math.max(0, ...(work.length ? work : done).map((x) => x.kg)), sets: done.map(({ r: reps, kg, t, k }) => ({ r: reps, kg, ...(t ? { t } : {}), ...(k ? { k } : {}) })) };
           if (map[id].kg) it.kg = map[id].kg; // la próxima vez parte de aquí
         } else delete map[id];
         keepSnap(r);
         save();
       };
+      // número de la serie (contando solo las efectivas) o su tipo: C, D, F
+      const label = (i) => SET_TYPES.find((t) => t.k === (rows[i].k || ''))?.short || rows.slice(0, i + 1).filter((x) => !x.k).length;
       const draw = () => {
         $('#rows').innerHTML = rows
           .map(
-            (x, i) => `<div class="setrow ${x.done ? 'on' : ''}"><span class="sn">${i + 1}</span>
+            (x, i) => `<div class="setrow ${x.done ? 'on' : ''}"><button type="button" class="sn st-${x.k || 'e'}" data-type="${i}" aria-label="Serie ${i + 1}: ${SET_TYPES.find((t) => t.k === (x.k || '')).name}. Tocar para cambiar el tipo">${label(i)}</button>
             <div class="stp"><button type="button" data-f="r" data-i="${i}" data-d="-1" aria-label="Menos repeticiones">−</button><b class="sv" data-f="r" data-i="${i}">${x.r}</b><button type="button" data-f="r" data-i="${i}" data-d="1" aria-label="Más repeticiones">+</button></div>
             <div class="stp"><button type="button" data-f="kg" data-i="${i}" data-d="-1" aria-label="Menos peso">−</button><b class="sv" data-f="kg" data-i="${i}">${kgTxt(x.kg)}</b><button type="button" data-f="kg" data-i="${i}" data-d="1" aria-label="Más peso">+</button></div>
             <button type="button" class="check ${x.done ? 'on' : ''}" data-done="${i}" aria-label="Serie ${i + 1} hecha" aria-pressed="${x.done}">✓</button></div>`
@@ -321,8 +386,16 @@ function logSheet(rid, id) {
         if (rows[i].done) persist();
       };
       $('#rows').onclick = (e) => {
-        const b = e.target.closest('[data-d], .sv, [data-done]');
+        const b = e.target.closest('[data-d], .sv, [data-done], [data-type]');
         if (!b) return;
+        if (b.dataset.type !== undefined) {
+          const x = rows[+b.dataset.type];
+          x.k = nextType(x.k || '');
+          if (!x.k) delete x.k;
+          toast(SET_TYPES.find((t) => t.k === (x.k || '')).name);
+          if (x.done) persist();
+          return draw();
+        }
         if (b.dataset.done !== undefined) {
           const x = rows[+b.dataset.done];
           x.done = !x.done;
@@ -330,8 +403,9 @@ function logSheet(rid, id) {
           if (x.done) {
             x.t = Date.now();
             vibrate();
-            const others = Math.max(0, ...rows.filter((y) => y.done && y !== x).map((y) => y.kg));
-            if (x.kg > best && best && x.kg > others) toast(`🏆 ¡Nueva marca! ${kgTxt(x.kg)} kg en ${it.name}`);
+            ensureSession();
+            const others = Math.max(0, ...rows.filter((y) => y.done && y !== x && y.k !== 'w').map((y) => y.kg));
+            if (x.k !== 'w' && x.kg > best && best && x.kg > others) toast(`🏆 ¡Nueva marca! ${kgTxt(x.kg)} kg en ${it.name}`);
             if (rows.every((y) => y.done)) stopRest(), toast(`${it.name} listo 💪`);
             else startRest(rest, it.name);
           } else delete x.t;
@@ -362,7 +436,7 @@ function logSheet(rid, id) {
       $('#padx').onclick = () => (closePad(), draw());
       $('#addset').onclick = () => {
         const last = rows[rows.length - 1] || prefill(0);
-        rows.push({ r: last.r, kg: last.kg, done: false });
+        rows.push({ r: last.r, kg: last.kg, done: false, ...(last.k && last.k !== 'w' ? { k: last.k } : {}) });
         closePad();
         draw();
       };
@@ -405,6 +479,100 @@ function historySheet(name) {
       .join('') || '<div class="small muted">Aún no hay series registradas.</div>'}</div>
     <p class="small muted">El 1RM es una estimación del peso máximo para una repetición (fórmula de Epley, con series de hasta 12 repeticiones). No lo pruebes sin supervisión.</p>
     <div class="actions"><button class="primary" data-close>Listo</button></div>`
+  );
+}
+
+// Terminar el entrenamiento: resumen, marcas nuevas y racha.
+function finishSheet() {
+  const ses = sessionOf(date);
+  const prs = [];
+  for (const items of Object.values(ex().done[date] || {}))
+    for (const v of Object.values(items || {})) {
+      const work = (v?.sets || []).filter((x) => x.k !== 'w');
+      if (!v?.n || !work.length) continue;
+      const before = bestBefore(v.n, date);
+      const top = Math.max(...work.map((x) => x.kg));
+      if (before && top > before) prs.push(`${v.n}: ${kgTxt(top)} kg (+${kgTxt(top - before)})`);
+    }
+  const nothing = !ses.exercises;
+  openSheet(
+    `<h3>${nothing ? '¿Terminar sin registrar?' : 'Terminar entrenamiento'}</h3>
+    ${
+      nothing
+        ? '<p class="small muted" style="margin-top:0">No registraste ningún ejercicio. Si lo descartas, no cuenta para la racha.</p>'
+        : `<div class="macros m4" style="margin-top:4px"><div><b>${clockTxt(ses.start)}</b><span>Duración</span></div><div><b>${ses.exercises}</b><span>Ejercicios</span></div><div><b>${ses.sets}</b><span>Series</span></div><div><b>${num(ses.vol)}</b><span>Kg totales</span></div></div>
+        ${ses.warm ? `<div class="small muted" style="margin-top:6px">Más ${ses.warm} ${ses.warm === 1 ? 'serie' : 'series'} de calentamiento.</div>` : ''}
+        ${prs.length ? `<div class="banner" style="margin-top:10px">🏆 <b>Marcas nuevas</b><br>${prs.map(esc).join('<br>')}</div>` : ''}`
+    }
+    <div class="actions">${nothing ? '<button class="danger" id="discard">Descartar</button>' : ''}<button class="ghost" data-close>Seguir entrenando</button>${nothing ? '' : '<button class="primary" id="done">Terminar</button>'}</div>`,
+    (sheet, close) => {
+      sheet.querySelector('#done')?.addEventListener('click', () => {
+        finishSession(date);
+        stopRest();
+        save();
+        close();
+        vibrate();
+        const n = streak(todayStr());
+        toast(`¡Entrenamiento guardado! 🔥 Racha: ${n} ${n === 1 ? 'entrenamiento' : 'entrenamientos'}`);
+        render();
+      });
+      sheet.querySelector('#discard')?.addEventListener('click', () => {
+        cancelSession(date);
+        stopRest();
+        save();
+        close();
+        render();
+      });
+    }
+  );
+}
+
+// ---------- biblioteca de ejercicios por músculo ----------
+// Lista filtrable por músculo y por texto; incluye los ejercicios propios que no están en la biblioteca.
+function libraryBrowser(box, onPick) {
+  const own = [...new Set(ex().routines.flatMap((r) => r.items.map((it) => it.name)))].filter((n) => !muscleOf(n) || !LIBRARY.some((e) => key(e.name) === key(n)));
+  let muscle = '';
+  let q = '';
+  box.innerHTML = `<input class="lib-q" placeholder="Buscar ejercicio" autocomplete="off" aria-label="Buscar ejercicio">
+    <div class="mchips lib-m">${['', ...MUSCLES, ...(own.length ? ['Mis ejercicios'] : [])].map((m) => `<button type="button" class="mchip" data-m="${m}">${m || 'Todos'}</button>`).join('')}</div>
+    <div class="lib-list"></div>`;
+  const draw = () => {
+    box.querySelectorAll('.lib-m .mchip').forEach((b) => b.classList.toggle('ok', b.dataset.m === muscle));
+    const groups = (muscle === 'Mis ejercicios' ? [] : muscle ? [muscle] : MUSCLES).map((m) => [m, LIBRARY.filter((e) => e.m === m).map((e) => e.name)]);
+    if (own.length && (!muscle || muscle === 'Mis ejercicios')) groups.push(['Mis ejercicios', own]);
+    const kq = key(q);
+    box.querySelector('.lib-list').innerHTML =
+      groups
+        .map(([m, names]) => [m, names.filter((n) => !kq || key(n).includes(kq))])
+        .filter(([, names]) => names.length)
+        .map(([m, names]) => `<div class="lib-g">${m}</div>${names.map((n) => `<button type="button" class="lib-item" data-n="${esc(n)}"><span>${esc(n)}</span><span class="muted">${historyOf(n).length ? `${historyOf(n).length} ses.` : ''} ›</span></button>`).join('')}`)
+        .join('') || '<div class="small muted" style="padding:10px 0">No hay ejercicios con ese nombre. Escríbelo tal cual en la rutina para crearlo.</div>';
+  };
+  box.querySelector('.lib-m').onclick = (e) => {
+    const b = e.target.closest('[data-m]');
+    if (b) (muscle = b.dataset.m), draw();
+  };
+  box.querySelector('.lib-q').oninput = (e) => ((q = e.target.value), draw());
+  box.querySelector('.lib-list').onclick = (e) => {
+    const b = e.target.closest('[data-n]');
+    if (b) onPick(b.dataset.n);
+  };
+  draw();
+}
+
+// Biblioteca como hoja: sin onPick, tocar un ejercicio abre su historial.
+function librarySheet({ title = 'Biblioteca de ejercicios', onPick } = {}) {
+  openSheet(
+    `<h3>${esc(title)}</h3>
+    <p class="small muted" style="margin-top:0">${onPick ? 'Toca un ejercicio para agregarlo.' : 'Ejercicios por músculo. Toca uno para ver tu historial.'}</p>
+    <div id="lib"></div>
+    <div class="actions"><button class="primary" data-close>Listo</button></div>`,
+    (sheet, close) =>
+      libraryBrowser(sheet.querySelector('#lib'), (name) => {
+        if (!onPick) return historySheet(name);
+        close();
+        onPick(name);
+      })
   );
 }
 
@@ -506,6 +674,8 @@ function routineSheet(r) {
     <div id="items" class="ing"></div>
     <div id="itemform" class="pk-box" hidden>
       <label class="field">Ejercicio<input id="iname" list="common" maxlength="40" placeholder="Ej: Sentadilla" autocomplete="off"></label>
+      <button type="button" class="ghost block sm" id="libbtn">📚 Elegir de la biblioteca</button>
+      <div id="libpanel" class="libpanel" hidden></div>
       <datalist id="common">${LIBRARY.map((e) => `<option value="${e.name}">${e.m}</option>`).join('')}</datalist>
       <div class="four"><label class="field">Series<input id="isets" inputmode="numeric" placeholder="Ej: 4"></label>
         <label class="field">Reps<input id="ireps" inputmode="numeric" placeholder="Ej: 12"></label>
@@ -563,6 +733,16 @@ function routineSheet(r) {
         editId = null;
       };
       $('#additem').onclick = () => openForm();
+      $('#libbtn').onclick = () => {
+        const p = $('#libpanel');
+        p.hidden = !p.hidden;
+        if (!p.hidden)
+          libraryBrowser(p, (name) => {
+            $('#iname').value = name;
+            if (muscleOf(name) === 'Cardio' && !$('#imins').value) $('#imins').value = '20';
+            p.hidden = true;
+          });
+      };
       $('#icancel').onclick = closeForm;
       $('#iok').onclick = () => {
         const name = $('#iname').value.trim();

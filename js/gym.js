@@ -2,8 +2,11 @@
 // y el temporizador de descanso entre series.
 //
 // Registro de un ejercicio en un día: exercise.done[fecha][rutina][ejercicio] =
-//   { n: nombre, kg: mejor peso del día, sets: [{ r: reps, kg, t: hora (ms) }] }
+//   { n: nombre, kg: mejor peso del día, sets: [{ r: reps, kg, t: hora (ms), k?: tipo }] }
 // Los registros antiguos (antes de la 4.17) solo tienen { kg } o {}.
+// Tipo de serie (k): sin k = efectiva, 'w' calentamiento, 'd' dropset, 'f' al fallo. El calentamiento
+// no cuenta para marcas, volumen ni series por músculo.
+// Entrenamiento del día: exercise.sessions[fecha] = { start, end? } (ms).
 import { state } from './store.js';
 import { uid } from './util.js';
 import { key } from './merchants.js';
@@ -34,8 +37,18 @@ export function muscleOf(name) {
 const BIG = new Set(['Sentadilla', 'Sentadilla frontal', 'Peso muerto', 'Peso muerto rumano', 'Press banca', 'Press militar', 'Remo con barra', 'Dominadas', 'Prensa', 'Hip thrust', 'Hack squat'].map(key));
 export const restFor = (it) => it.rest || (BIG.has(key(it.name)) ? 120 : muscleOf(it.name) === 'Core' ? 60 : 90);
 
+export const SET_TYPES = [
+  { k: '', short: '', name: 'Efectiva' },
+  { k: 'w', short: 'C', name: 'Calentamiento' },
+  { k: 'd', short: 'D', name: 'Dropset' },
+  { k: 'f', short: 'F', name: 'Al fallo' },
+];
+export const nextType = (k = '') => SET_TYPES[(SET_TYPES.findIndex((t) => t.k === k) + 1) % SET_TYPES.length].k;
+const isWork = (st) => st.k !== 'w';
+
 // ---------- historial y marcas ----------
 export const setsOf = (v) => (v?.sets?.length ? v.sets : v?.kg ? [{ r: 0, kg: v.kg }] : []);
+const workOf = (v) => setsOf(v).filter(isWork);
 // 1RM estimado (Epley); con más de 12 repeticiones la estimación es poco confiable y se usa el peso.
 export const e1rm = (kg, r) => (!kg ? 0 : !r || r === 1 || r > 12 ? kg : kg * (1 + r / 30));
 const ex = () => state.exercise;
@@ -50,8 +63,9 @@ export function historyOf(name) {
       for (const [iid, v] of Object.entries(items || {})) {
         if (key(nameIn(rid, iid, v)) !== k) continue;
         const sets = setsOf(v);
-        if (!sets.length) continue;
-        out.push({ d, sets, best: Math.max(...sets.map((s) => s.kg || 0)), rm: Math.max(...sets.map((s) => e1rm(s.kg, s.r))), vol: sets.reduce((a, s) => a + (s.kg || 0) * (s.r || 0), 0) });
+        const work = workOf(v);
+        if (!work.length) continue;
+        out.push({ d, sets, best: Math.max(...work.map((s) => s.kg || 0)), rm: Math.max(...work.map((s) => e1rm(s.kg, s.r))), vol: work.reduce((a, s) => a + (s.kg || 0) * (s.r || 0), 0) });
       }
   return out.sort((a, b) => a.d.localeCompare(b.d));
 }
@@ -67,7 +81,7 @@ export function records() {
     for (const [rid, items] of Object.entries(byR || {}))
       for (const [iid, v] of Object.entries(items || {})) {
         const n = nameIn(rid, iid, v);
-        if (n && setsOf(v).some((s) => s.kg)) names.set(key(n), { name: n, last: d > (names.get(key(n))?.last || '') ? d : names.get(key(n)).last });
+        if (n && workOf(v).some((s) => s.kg)) names.set(key(n), { name: n, last: d > (names.get(key(n))?.last || '') ? d : names.get(key(n)).last });
       }
   return [...names.values()]
     .map(({ name, last }) => {
@@ -87,26 +101,74 @@ export function setsByMuscle(days) {
         const it = ex().routines.find((r) => r.id === rid)?.items.find((x) => x.id === iid);
         const m = muscleOf(nameIn(rid, iid, v));
         if (!m || m === 'Cardio') continue;
-        out[m] = (out[m] || 0) + (v?.sets?.length || it?.sets || 1);
+        out[m] = (out[m] || 0) + (v?.sets?.length ? v.sets.filter(isWork).length : it?.sets || 1);
       }
   return out;
 }
 
-// Resumen del entrenamiento de un día: series, volumen y duración (de la primera a la última serie).
-export function sessionOf(d) {
+// Resumen del entrenamiento de un día: series efectivas, calentamiento, volumen, ejercicios hechos y
+// duración (la del cronómetro si se usó; si no, de la primera a la última serie).
+export function sessionOf(d, now = Date.now()) {
   const times = [];
   let sets = 0;
+  let warm = 0;
   let vol = 0;
+  let exercises = 0;
   for (const items of Object.values(ex().done[d] || {}))
-    for (const v of Object.values(items || {}))
+    for (const v of Object.values(items || {})) {
+      if (v) exercises++;
       for (const s of v?.sets || []) {
+        if (s.t) times.push(s.t);
+        if (!isWork(s)) {
+          warm++;
+          continue;
+        }
         sets++;
         vol += (s.kg || 0) * (s.r || 0);
-        if (s.t) times.push(s.t);
       }
-  const mins = times.length > 1 ? Math.round((Math.max(...times) - Math.min(...times)) / 60000) : 0;
-  return { sets, vol, mins };
+    }
+  const ses = ex().sessions?.[d];
+  const mins = ses?.start ? Math.round(((ses.end || now) - ses.start) / 60000) : times.length > 1 ? Math.round((Math.max(...times) - Math.min(...times)) / 60000) : 0;
+  return { sets, warm, vol, mins, exercises, active: !!(ses?.start && !ses.end), finished: !!ses?.end, start: ses?.start || 0 };
 }
+
+// ---------- entrenamiento y racha ----------
+const sessions = () => (ex().sessions ||= {});
+export const startSession = (d, now = Date.now()) => {
+  const ses = sessions()[d];
+  if (!ses?.start) sessions()[d] = { start: now };
+  else if (ses.end) delete ses.end; // seguir un entrenamiento que ya se había terminado
+  return sessions()[d];
+};
+export const finishSession = (d, now = Date.now()) => {
+  const ses = sessions()[d] || (sessions()[d] = { start: now });
+  ses.end = now;
+  return ses;
+};
+export const cancelSession = (d) => delete sessions()[d];
+
+// ¿Entrenó ese día? Un entrenamiento terminado o algún ejercicio marcado.
+export const trainedOn = (d) => !!sessions()[d]?.end || Object.values(ex().done[d] || {}).some((items) => Object.keys(items || {}).length);
+const weekday = (d) => (new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)).getDay() + 6) % 7;
+const prevDay = (d) => {
+  const x = new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10) - 1);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
+// Racha: entrenamientos seguidos sin saltarse un día que tenía rutina. Los días de descanso no la cortan
+// y hoy no la corta mientras no termine.
+export function streak(today) {
+  const scheduled = (d) => ex().routines.some((r) => r.days.includes(weekday(d)));
+  if (!ex().routines.length && !Object.keys(ex().done).length) return 0;
+  let n = 0;
+  let d = today;
+  for (let i = 0; i < 400; i++, d = prevDay(d)) {
+    if (trainedOn(d)) n++;
+    else if (d !== today && scheduled(d)) break;
+  }
+  return n;
+}
+// Entrenamientos del mes (YYYY-MM)
+export const monthCount = (ym) => [...new Set([...Object.keys(ex().done), ...Object.keys(sessions())])].filter((d) => d.startsWith(ym) && trainedOn(d)).length;
 
 // ---------- rutinas listas para usar ----------
 const mk = (name, sets, reps, note = '') => ({ id: uid(), name, sets, reps: String(reps), kg: 0, mins: 0, note });

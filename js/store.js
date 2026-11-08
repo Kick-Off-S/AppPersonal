@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.17';
+export const APP_VERSION = '4.18';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -41,7 +41,8 @@ export const defaults = () => ({
   // Ejercicio: rutinas por día de la semana (0 = lunes) con ejercicios; done[fecha][rutina][ejercicio] = { kg? }
   // log[fecha] = actividades extra { id, type, mins, kcal, note }
   // snap[fecha][rutina] = { total, mins, kcal } al marcar: el historial no cambia si se edita la rutina
-  exercise: { routines: [], done: {}, log: {}, snap: {} },
+  // sessions[fecha] = { start, end? }: cronómetro del entrenamiento (la racha cuenta los terminados)
+  exercise: { routines: [], done: {}, log: {}, snap: {}, sessions: {} },
   // Hábitos: list { id, name, emoji, days, time? 'HH:MM' }, done[fecha][hábito] = true
   habits: { list: [], done: {} },
   // Lista de compras: { id, name, qty, done }
@@ -222,7 +223,16 @@ function normalize(o) {
   for (const byR of Object.values(ex.done))
     for (const items of Object.values(isObj(byR) ? byR : {}))
       for (const v of Object.values(isObj(items) ? items : {}))
-        if (isObj(v) && v.sets !== undefined) v.sets = objs(v.sets).slice(0, 50).map((s) => ({ r: Math.round(pos(s.r)), kg: pos(s.kg), ...(s.t ? { t: pos(s.t) } : {}) }));
+        if (isObj(v) && v.sets !== undefined)
+          v.sets = objs(v.sets)
+            .slice(0, 50)
+            .map((s) => ({ r: Math.round(pos(s.r)), kg: pos(s.kg), ...(s.t ? { t: pos(s.t) } : {}), ...(['w', 'd', 'f'].includes(s.k) ? { k: s.k } : {}) }));
+  // entrenamientos: { start, end? } por día
+  ex.sessions = isObj(ex.sessions) ? ex.sessions : {};
+  for (const [d, x] of Object.entries(ex.sessions)) {
+    if (!isObj(x) || !pos(x.start)) delete ex.sessions[d];
+    else ex.sessions[d] = { start: pos(x.start), ...(pos(x.end) ? { end: pos(x.end) } : {}) };
+  }
   for (const [d, list] of Object.entries(ex.log)) ex.log[d] = objs(list).map((a) => ((a.mins = pos(a.mins)), (a.kcal = pos(a.kcal)), a));
   o.habits.list = objs(o.habits.list).map((h) => {
     h.days = dayList(h.days) || [0, 1, 2, 3, 4, 5, 6];

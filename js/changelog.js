@@ -6,6 +6,17 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.18',
+    date: '2026-11-08',
+    title: 'Entrenamiento con cronómetro y racha',
+    items: [
+      '<b>⏱️ Empezar entrenamiento:</b> parte un cronómetro que ves arriba mientras entrenas (también parte solo al registrar la primera serie). Al final tocas <b>Terminar</b> y ves la duración, los ejercicios, las series, los kilos y tus marcas nuevas.',
+      '<b>🔥 Racha de entrenamientos:</b> suma cada día que entrenas; los días de descanso no la cortan, solo saltarte un día que tenía rutina.',
+      '<b>Tipos de serie:</b> toca el número de la serie para marcarla como <b>C</b> calentamiento, <b>D</b> dropset o <b>F</b> al fallo. El calentamiento no cuenta para marcas ni volumen.',
+      '<b>📚 Biblioteca por músculo:</b> pecho, espalda, hombros, bíceps, tríceps, piernas, glúteos, core y cardio, con buscador. Agrega ejercicios a tu rutina desde ahí.',
+    ],
+  },
+  {
     v: '4.17',
     date: '2026-11-08',
     title: 'Gimnasio completo',

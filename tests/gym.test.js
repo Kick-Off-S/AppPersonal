@@ -63,3 +63,46 @@ test('rutinas listas: días válidos y ejercicios de la biblioteca', () => {
       for (const it of r.items) assert.ok(names.has(it.name), `${it.name} no está en la biblioteca`);
     }
 });
+
+test('tipos de serie: el calentamiento no cuenta para marcas, volumen ni series por músculo', async () => {
+  const { nextType } = await import('../js/gym.js');
+  assert.deepEqual([nextType(''), nextType('w'), nextType('d'), nextType('f')], ['w', 'd', 'f', '']);
+  Object.assign(
+    state,
+    withDefaults({
+      exercise: {
+        routines: [routine],
+        done: { '2026-11-06': { r: { a: { n: 'Sentadilla', sets: [{ r: 10, kg: 100, k: 'w' }, { r: 8, kg: 80 }, { r: 6, kg: 70, k: 'd' }, { r: 5, kg: 80, k: 'f' }, { r: 1, kg: 5, k: 'x' }] } } } },
+      },
+    })
+  );
+  const h = historyOf('Sentadilla')[0];
+  assert.equal(h.best, 80, 'los 100 kg de calentamiento no son marca');
+  assert.equal(h.vol, 80 * 8 + 70 * 6 + 80 * 5 + 5 * 1);
+  assert.deepEqual(setsByMuscle(['2026-11-06']), { Piernas: 4 });
+  assert.equal(state.exercise.done['2026-11-06'].r.a.sets[4].k, undefined, 'tipo desconocido se descarta');
+  const s = sessionOf('2026-11-06');
+  assert.equal(s.sets, 4);
+  assert.equal(s.warm, 1);
+});
+
+test('entrenamiento: cronómetro, terminar y racha (los días de descanso no la cortan)', async () => {
+  const { startSession, finishSession, streak, monthCount, trainedOn } = await import('../js/gym.js');
+  // rutina lunes (0) y jueves (3); 2 y 5 de noviembre de 2026 son lunes y jueves
+  Object.assign(state, withDefaults({ exercise: { routines: [{ ...routine, days: [0, 3] }], done: {} } }));
+  startSession('2026-11-02', 1_000_000);
+  finishSession('2026-11-02', 1_000_000 + 55 * 60000);
+  assert.equal(sessionOf('2026-11-02').mins, 55);
+  assert.ok(trainedOn('2026-11-02'));
+  state.exercise.done['2026-11-05'] = { r: { a: { n: 'Sentadilla', kg: 80 } } }; // jueves: solo marcó
+  assert.equal(streak('2026-11-08'), 2, 'domingo: martes, miércoles, viernes y sábado eran descanso');
+  assert.equal(streak('2026-11-09'), 2, 'lunes de hoy aún no corta la racha');
+  assert.equal(streak('2026-11-10'), 0, 'se saltó el lunes 9');
+  assert.equal(monthCount('2026-11'), 2);
+  // seguir después de terminar reabre el cronómetro
+  startSession('2026-11-02');
+  assert.equal(sessionOf('2026-11-02').active, true);
+  // se valida al cargar
+  const st = withDefaults({ exercise: { sessions: { '2026-11-02': { start: 5, end: 'x' }, malo: 'y' } } });
+  assert.deepEqual(st.exercise.sessions, { '2026-11-02': { start: 5 } });
+});

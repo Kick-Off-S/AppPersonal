@@ -502,3 +502,27 @@ body.modal-open #rest-bar { z-index: 25; bottom: auto; top: calc(env(safe-area-i
 .mchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 10px; border-radius: 99px; font-size: 13px; background: var(--bg); border: 1px solid var(--line); }
 .mchip.ok { background: color-mix(in srgb, var(--ok) 13%, var(--card)); border-color: transparent; }
 button.ghost.sm-btn { color: var(--primary); padding: 0 6px; flex: none; }
+/* entrenamiento en curso */
+.start-btn { min-height: 54px; font-size: 17px; margin-bottom: 12px; }
+.sesbar { position: sticky; top: 8px; z-index: 6; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px 12px; border-radius: 16px; background: var(--primary); color: var(--primary-ink); box-shadow: var(--shadow); }
+.sesbar .sb-ic { font-size: 22px; }
+.sesbar #clock { font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.sesbar .small { opacity: .85; color: inherit; }
+.sesbar button.primary { background: var(--primary-ink); color: var(--primary); border-color: var(--primary-ink); }
+.sesdone { margin-bottom: 12px; }
+.sesdone button { margin-left: 4px; }
+.streak { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; }
+/* tipo de serie: número (efectiva), C calentamiento, D dropset, F al fallo */
+.setrow button.sn { min-height: 34px; width: 30px; padding: 0; border-radius: 8px; font-weight: 800; font-size: 15px; background: var(--card); border: 1px solid var(--line); color: var(--text); }
+.setrow button.st-w { background: color-mix(in srgb, var(--warn) 18%, var(--card)); color: var(--warn); border-color: transparent; }
+.setrow button.st-d { background: color-mix(in srgb, #7c3aed 16%, var(--card)); color: #7c3aed; border-color: transparent; }
+.setrow button.st-f { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+/* biblioteca */
+.lib-q { width: 100%; margin-top: 4px; }
+.lib-m { margin: 8px 0; }
+.lib-m .mchip { cursor: pointer; min-height: 34px; font-weight: 600; color: var(--text); }
+.lib-list { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.lib-g { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
+button.lib-item { display: flex; justify-content: space-between; width: 100%; min-height: 44px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); font-weight: 500; text-align: left; }
+.libpanel { margin-top: 8px; padding: 8px; border-radius: 12px; background: var(--bg); }
+.lib-m .mchip.ok { background: var(--primary); color: var(--primary-ink); }
