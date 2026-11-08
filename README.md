@@ -19,6 +19,8 @@ python3 -m http.server 8080
 Abrir http://localhost:8080 (en Chrome, modo móvil).
 
 ## Compartir con amigos (gratis)
+Página de bienvenida para nuevos usuarios (qué hace la app, cómo instalarla en iPhone y Android, primeros pasos, preguntas y QR): `gym.html` → https://kick-off-s.github.io/AppPersonal/gym.html. Capturas en `img/bienvenida/` (datos de ejemplo).
+
 1. Subir este repo a GitHub.
 2. Settings → Pages → Deploy from branch → `main` / root.
 3. Compartir el link `https://<usuario>.github.io/<repo>/`.

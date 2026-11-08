@@ -385,12 +385,12 @@ function logSheet(rid, id) {
       };
       const closePad = () => ($('#padwrap').hidden = true);
       // Cambiar reps o kg de una serie lo copia a las siguientes que aún no se marcan y tenían el
-      // mismo valor (así basta con escribir el peso una vez).
+      // mismo valor (así basta con escribir el peso una vez). El calentamiento no se copia.
       const setVal = (i, f, v) => {
         const old = rows[i][f];
         rows[i][f] = v;
-        for (let j = i + 1; j < rows.length; j++)
-          if (!rows[j].done && rows[j][f] === old) {
+        for (let j = i + 1; j < rows.length && rows[i].k !== 'w'; j++)
+          if (!rows[j].done && rows[j].k !== 'w' && rows[j][f] === old) {
             rows[j][f] = v;
             const el = sheet.querySelector(`.sv[data-f="${f}"][data-i="${j}"] b`);
             if (el) el.textContent = f === 'kg' ? kgTxt(v) : v;
