@@ -466,3 +466,10 @@ body.report-open { overflow: hidden; }
 #terms-gate h2 { margin: 0 0 6px; font-size: 21px; text-transform: none; letter-spacing: 0; color: var(--text); }
 #terms-gate .tg-text { max-height: 46vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px; margin: 8px 0; -webkit-overflow-scrolling: touch; }
 #terms-gate button:disabled { opacity: 0.45; }
+/* cantidad con teclado de la app (agua, peso) */
+.water-amt { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 6px 0 10px; }
+.wa-val { font-size: 16px; color: var(--muted); min-width: 120px; text-align: center; }
+.wa-val b { font-size: 40px; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.wa-val b.fresh { color: var(--primary); }
+.numpad { grid-template-columns: repeat(3, 1fr); }
+#sizes { justify-content: center; margin-bottom: 4px; }

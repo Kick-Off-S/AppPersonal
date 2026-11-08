@@ -1,7 +1,7 @@
 import { state, save } from '../store.js';
 import { dayTotals, dayMacros, dietStreak, waterOf } from '../calc.js';
 import { barChart, lineChart } from '../charts.js';
-import { esc, uid, num, parseQty, openSheet, toast, todayStr, addDays, lastDays, weekdayShort, shortDate, dayLabel, parseDate } from '../util.js';
+import { esc, uid, num, parseQty, openSheet, toast, todayStr, addDays, lastDays, weekdayShort, shortDate, dayLabel, parseDate, numberPad } from '../util.js';
 import { bmiInfo, weightAdvice } from '../nutrition.js';
 import { nutritionReportSheet } from '../reports.js';
 
@@ -230,15 +230,17 @@ function weightSheet(item) {
   const lastKg = byDate().pop()?.kg;
   openSheet(
     `<h3>${editing ? 'Editar peso' : 'Registrar peso'}</h3>
-    <label class="field">Peso (kg)<input id="kg" inputmode="decimal" value="${item?.kg ?? lastKg ?? ''}" placeholder="Ej: 72,4" autocomplete="off"></label>
+    <label class="field">Peso (kg)</label>
+    <div class="water-amt"><div class="wa-val"><b id="kgv"></b> kg</div></div>
+    <div id="pad"></div>
     <label class="field">Fecha<input id="date" type="date" max="${todayStr()}" value="${item?.date || todayStr()}"></label>
     <div class="actions">${editing ? '<button class="danger" id="del">Eliminar</button>' : '<button class="ghost" data-close>Cancelar</button>'}<button class="primary" id="ok">Guardar</button></div>`,
     (sheet, close) => {
       const $ = (s) => sheet.querySelector(s);
-      $('#kg').focus();
-      $('#kg').select();
+      // teclado de la app: el del sistema, dentro de la hoja, no dejaba escribir en el teléfono
+      const pad = numberPad($('#pad'), $('#kgv'), { value: item?.kg ?? lastKg ?? '', decimal: true, max: 400 });
       $('#ok').onclick = () => {
-        const v = parseQty($('#kg').value);
+        const v = pad.value;
         const date = $('#date').value;
         if (!v || v < 20 || v > 400) return toast('Ingresa un peso válido en kg');
         if (!date) return toast('Elige una fecha');

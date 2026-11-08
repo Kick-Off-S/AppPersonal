@@ -210,3 +210,62 @@ window.addEventListener('beforeinstallprompt', (e) => {
   window.dispatchEvent(new Event('install-ready'));
 });
 window.addEventListener('appinstalled', () => (install.prompt = null));
+
+// ---------- teclado numérico de la app ----------
+// Dentro de una hoja, el teclado del sistema (sobre todo en iPhone) tapa la hoja o no deja escribir.
+// Este teclado se dibuja en la misma hoja y funciona igual en iPhone y Android; en computador también
+// se puede escribir con el teclado físico. El número se muestra en `display` (un elemento, no un input).
+// decimal: permite una coma · max: tope · onChange(valor) en cada tecla.
+export function numberPad(container, display, { value = '', decimal = false, max = 1e9, onChange = () => {} } = {}) {
+  let txt = String(value ?? '').replace('.', ',');
+  let fresh = true; // la primera tecla reemplaza el valor inicial (no hay que borrar)
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', decimal ? ',' : '', '0', 'del'];
+  container.classList.add('keypad', 'numpad');
+  container.innerHTML = keys
+    .map((k) => (k ? `<button type="button" data-k="${k}" aria-label="${k === 'del' ? 'Borrar un número' : k}">${k === 'del' ? '⌫' : k}</button>` : '<span></span>'))
+    .join('');
+  const num = () => parseFloat(txt.replace(',', '.')) || 0;
+  const draw = () => {
+    display.textContent = txt || '0';
+    display.classList.toggle('fresh', fresh && !!txt);
+    onChange(num());
+  };
+  const press = (k) => {
+    if (fresh && k !== 'del') txt = '';
+    fresh = false;
+    if (k === 'del') txt = txt.slice(0, -1);
+    else if (k === ',') {
+      if (!txt.includes(',')) txt = (txt || '0') + ',';
+    } else {
+      const next = (txt === '0' ? '' : txt) + k;
+      const dec = next.split(',')[1];
+      if (dec && dec.length > 1) return; // un decimal basta (72,4 kg)
+      if (parseFloat(next.replace(',', '.')) > max) return;
+      txt = next;
+    }
+    vibrate();
+    draw();
+  };
+  container.onclick = (e) => {
+    const k = e.target.closest('[data-k]')?.dataset.k;
+    if (k) press(k);
+  };
+  const onKey = (e) => {
+    if (!container.isConnected) return document.removeEventListener('keydown', onKey);
+    if (e.target.matches?.('input, textarea, select')) return;
+    const k = e.key === 'Backspace' ? 'del' : e.key === '.' || e.key === ',' ? (decimal ? ',' : null) : /^[0-9]$/.test(e.key) ? e.key : null;
+    if (k) e.preventDefault(), press(k);
+  };
+  document.addEventListener('keydown', onKey);
+  draw();
+  return {
+    get value() {
+      return num();
+    },
+    set(v) {
+      txt = v ? String(v).replace('.', ',') : '';
+      fresh = true;
+      draw();
+    },
+  };
+}

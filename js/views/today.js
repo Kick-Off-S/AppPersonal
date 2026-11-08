@@ -6,7 +6,7 @@ import { isOn } from '../modules.js';
 import { routinesFor, routineProgress, burnedFor } from './exercise.js';
 import { habitsFor, isDone, toggleHabit, streakOf } from './habits.js';
 import { dosesFor, setDose } from './meds.js';
-import { esc, uid, num, parseMoney, openSheet, toast, todayStr, addDays, dayLabel, vibrate } from '../util.js';
+import { esc, uid, num, parseMoney, openSheet, toast, todayStr, addDays, dayLabel, vibrate, numberPad } from '../util.js';
 
 let root;
 let date = todayStr();
@@ -202,22 +202,38 @@ function addWater(ml) {
   if (goal && before < goal && before + ml >= goal) toast('¡Meta de agua cumplida! 💧');
 }
 
+// Cantidad de agua a mano: tamaños comunes, − / + y teclado de la app (sin el teclado del sistema).
+const WATER_SIZES = [150, 200, 250, 330, 500, 750, 1000];
 function waterSheet() {
   openSheet(
-    `<h3>Agregar agua</h3><label class="field">Cantidad (ml)<input id="ml" inputmode="numeric" placeholder="Ej: 330"></label>
-    <div class="actions"><button class="ghost" data-close>Cancelar</button><button class="primary" id="ok">Agregar</button></div>`,
+    `<h3>Agregar agua</h3>
+    <div class="water-amt"><button type="button" class="icon" id="minus" aria-label="Restar 50 ml">−</button>
+      <div class="wa-val" aria-live="polite"><b id="wv">250</b> ml</div>
+      <button type="button" class="icon" id="plus" aria-label="Sumar 50 ml">+</button></div>
+    <div class="chips" id="sizes">${WATER_SIZES.map((v) => `<button type="button" class="chip" data-v="${v}">${v >= 1000 ? num(v / 1000, 1) + ' L' : v}</button>`).join('')}</div>
+    <div id="pad"></div>
+    <div class="actions"><button class="ghost" data-close>Cancelar</button><button class="primary" id="ok">Agregar 250 ml</button></div>`,
     (sheet, close) => {
-      const input = sheet.querySelector('#ml');
-      const ok = () => {
-        const v = parseMoney(input.value);
-        if (!v) return toast('Ingresa una cantidad');
+      const $ = (s) => sheet.querySelector(s);
+      const pad = numberPad($('#pad'), $('#wv'), {
+        value: 250,
+        max: 5000,
+        onChange: (v) => {
+          $('#ok').textContent = v ? `Agregar ${num(v)} ml` : 'Agregar';
+          sheet.querySelectorAll('#sizes .chip').forEach((c) => c.classList.toggle('sel', +c.dataset.v === v));
+        },
+      });
+      $('#sizes').onclick = (e) => e.target.closest('[data-v]') && pad.set(+e.target.closest('[data-v]').dataset.v);
+      const bump = (d) => pad.set(Math.min(5000, Math.max(50, Math.round((pad.value + d) / 50) * 50)));
+      $('#minus').onclick = () => bump(-50);
+      $('#plus').onclick = () => bump(50);
+      $('#ok').onclick = () => {
+        const v = Math.round(pad.value);
+        if (!v) return toast('Elige o escribe una cantidad');
         addWater(v);
         close();
         render();
       };
-      sheet.querySelector('#ok').onclick = ok;
-      input.onkeydown = (e) => e.key === 'Enter' && ok();
-      input.focus();
     }
   );
 }

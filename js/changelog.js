@@ -6,6 +6,15 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.16',
+    date: '2026-11-08',
+    title: 'Agua y peso más fáciles de anotar',
+    items: [
+      '<b>💧 Agua a mano:</b> "Otro" ahora trae tamaños rápidos (150 ml a 1 L), botones − / + y un teclado de la app para escribir cualquier cantidad. Antes, en algunos teléfonos no dejaba escribir.',
+      '<b>⚖️ Peso:</b> se anota con el mismo teclado, con coma para el decimal (ej: 72,4).',
+    ],
+  },
+  {
     v: '4.15',
     date: '2026-10-30',
     title: 'Mejor en Android',

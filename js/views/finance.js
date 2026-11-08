@@ -607,7 +607,6 @@ function expenseSheet(exp) {
           sheet.querySelector('#n-wrap').hidden = !split.checked;
           sheet.querySelector('#amt-l').textContent = split.checked ? 'Precio al contado (total de la compra)' : 'Monto';
           sheet.querySelector('#date-l').textContent = split.checked ? 'Fecha de la primera cuota a anotar' : 'Fecha';
-          if (split.checked) form.elements.n.focus();
           hint();
         };
         form.oninput = hint;
