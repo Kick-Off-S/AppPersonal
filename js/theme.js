@@ -1,4 +1,4 @@
-// Apariencia: paleta de colores y modo claro/oscuro. Se aplica con atributos en <html> (ver styles.css).
+// Apariencia: paleta de colores, modo claro/oscuro y efecto vidrio. Se aplica con atributos en <html> (ver styles.css).
 // Se copia también en localStorage para aplicarla antes de dibujar la app (sin parpadeo del color por defecto).
 import { state, save } from './store.js';
 
@@ -27,8 +27,10 @@ export function applyTheme() {
   const t = state.settings.theme || {};
   html.dataset.palette = PALETTES.some((p) => p.id === t.palette) ? t.palette : 'teal';
   html.dataset.mode = MODES.some((m) => m.id === t.mode) ? t.mode : 'auto';
+  // efecto vidrio (Liquid Glass): activado salvo que se apague en Ajustes → Apariencia
+  html.dataset.glass = t.glass === false ? 'off' : 'on';
   try {
-    localStorage.setItem(LS, JSON.stringify({ p: html.dataset.palette, m: html.dataset.mode }));
+    localStorage.setItem(LS, JSON.stringify({ p: html.dataset.palette, m: html.dataset.mode, g: html.dataset.glass }));
   } catch {
     /* sin almacenamiento: se aplica igual al cargar */
   }

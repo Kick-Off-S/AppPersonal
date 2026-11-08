@@ -48,7 +48,9 @@ function render() {
       <div class="seg">${MODES.map(
         (m) => `<button type="button" class="${(state.settings.theme?.mode || 'auto') === m.id ? 'sel' : ''}" data-act="mode" data-m="${m.id}">${m.name}</button>`
       ).join('')}</div>
-      <p class="small muted" style="margin-bottom:0">Automático sigue el modo claro u oscuro de tu teléfono.</p>
+      <p class="small muted">Automático sigue el modo claro u oscuro de tu teléfono.</p>
+      <label class="mod"><input type="checkbox" class="switch" data-glass ${state.settings.theme?.glass === false ? '' : 'checked'}>
+        <span class="grow"><b>Efecto vidrio</b><small>Barras y tarjetas translúcidas, al estilo Liquid Glass. Apágalo si tu teléfono va lento.</small></span></label>
     </div>
 
     <div class="card"><h2>Módulos</h2>
@@ -390,6 +392,7 @@ function onChange(e) {
     cloud.syncPush().catch(() => {});
     return toast('Hora actualizada');
   }
+  if (e.target.dataset.glass !== undefined) return setTheme({ glass: e.target.checked });
   if (e.target.dataset.sec) return onSecurity(e.target.dataset.sec, e.target.checked, e.target);
   if (e.target.dataset.mod) {
     if (!setModule(e.target.dataset.mod, e.target.checked)) {

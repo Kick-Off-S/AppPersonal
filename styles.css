@@ -526,3 +526,78 @@ button.ghost.sm-btn { color: var(--primary); padding: 0 6px; flex: none; }
 button.lib-item { display: flex; justify-content: space-between; width: 100%; min-height: 44px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); font-weight: 500; text-align: left; }
 .libpanel { margin-top: 8px; padding: 8px; border-radius: 12px; background: var(--bg); }
 .lib-m .mchip.ok { background: var(--primary); color: var(--primary-ink); }
+.sesbar .sb-x { background: transparent; color: var(--primary-ink); border: 0; font-size: 18px; min-width: 36px; opacity: .8; }
+.danger-t { color: var(--danger); }
+.gymtip { margin: 8px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--primary-soft); font-size: 13.5px; }
+.gymtip ul { margin: 4px 0 2px; padding-left: 18px; }
+.gymtip li { margin: 3px 0; }
+.gymtip button { padding: 0; min-height: 30px; }
+.sethead { font-size: 10.5px; letter-spacing: .02em; }
+.sethead span:last-child { text-align: center; }
+.stp .sv { display: grid; justify-items: center; line-height: 1.05; padding: 5px 0; }
+.stp .sv b { font-size: 18px; }
+.stp .sv small { font-size: 10.5px; color: var(--muted); font-weight: 600; }
+.stp .sv.editing b { color: var(--primary); text-decoration: underline; }
+
+/* ---- efecto vidrio (Liquid Glass) ----
+   Superficies translúcidas con desenfoque y brillo en el borde sobre un fondo con color suave de la paleta.
+   Se activa con html[data-glass="on"] (Ajustes → Apariencia). */
+:root[data-glass="on"] {
+  --glass: color-mix(in srgb, var(--card) 58%, transparent);
+  --glass-strong: color-mix(in srgb, var(--card) 76%, transparent);
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.15);
+  --glass-shadow: 0 8px 28px rgba(16, 30, 30, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-glass="on"]:not([data-mode="light"]) { --glass: color-mix(in srgb, var(--card) 55%, transparent); --glass-strong: color-mix(in srgb, var(--card) 80%, transparent); --glass-edge: rgba(255, 255, 255, 0.12); --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.14); --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.35); }
+}
+:root[data-glass="on"][data-mode="dark"] { --glass: color-mix(in srgb, var(--card) 55%, transparent); --glass-strong: color-mix(in srgb, var(--card) 80%, transparent); --glass-edge: rgba(255, 255, 255, 0.12); --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.14); --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.35); }
+
+/* fondo con manchas de color para que el vidrio se note */
+[data-glass="on"] body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(60% 45% at 10% 8%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 70%),
+    radial-gradient(55% 40% at 95% 30%, color-mix(in srgb, var(--primary) 16%, #7dd3fc 10%), transparent 70%),
+    radial-gradient(70% 50% at 40% 100%, color-mix(in srgb, var(--primary) 14%, #f9a8d4 8%), transparent 70%),
+    var(--bg);
+}
+[data-glass="on"] body { background: transparent; }
+[data-glass="on"] .card,
+[data-glass="on"] .sesbar,
+[data-glass="on"] #rest-bar {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shine), var(--glass-shadow);
+}
+[data-glass="on"] .sesbar { background: color-mix(in srgb, var(--primary) 90%, transparent); color: var(--primary-ink); }
+[data-glass="on"] #rest-bar { background: color-mix(in srgb, var(--text) 72%, transparent); color: var(--card); }
+[data-glass="on"] .topbar { background: color-mix(in srgb, var(--bg) 55%, transparent); -webkit-backdrop-filter: blur(20px) saturate(170%); backdrop-filter: blur(20px) saturate(170%); }
+/* barra inferior flotante tipo cápsula */
+[data-glass="on"] .tabbar {
+  left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 8px); padding-bottom: 0;
+  border-radius: 28px; border: 1px solid var(--glass-edge);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--glass-shine), 0 10px 30px rgba(0, 0, 0, 0.14);
+}
+[data-glass="on"] .tabbar a.active { position: relative; }
+[data-glass="on"] .tabbar a.active::before { content: ''; position: absolute; inset: 6px 8px; border-radius: 20px; background: color-mix(in srgb, var(--primary) 14%, transparent); z-index: -1; }
+[data-glass="on"] body { padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 24px); }
+[data-glass="on"] .sheet {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-edge); border-bottom: 0;
+  box-shadow: var(--glass-shine);
+}
+[data-glass="on"] .backdrop { background: rgba(0, 0, 0, 0.3); }
+/* los botones secundarios y casillas toman un tono de vidrio claro */
+[data-glass="on"] .seg, [data-glass="on"] .setrow, [data-glass="on"] .macros div { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+@media (prefers-reduced-transparency: reduce) {
+  [data-glass="on"] .card, [data-glass="on"] .tabbar, [data-glass="on"] .sheet, [data-glass="on"] .topbar { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

@@ -143,9 +143,9 @@ function render() {
     ? ''
     : ses.active
       ? `<div class="sesbar"><span class="sb-ic">⏱</span><div class="grow"><b id="clock">${clockTxt(ses.start)}</b><div class="small">${ses.exercises} ${ses.exercises === 1 ? 'ejercicio' : 'ejercicios'} · ${ses.sets} series · ${num(ses.vol)} kg</div></div>
-        <button class="primary" data-act="finish">Terminar</button></div>`
+        <button class="icon sb-x" data-act="discard" aria-label="Eliminar este entrenamiento">✕</button><button class="primary" data-act="finish">Terminar</button></div>`
       : ses.finished
-        ? `<div class="banner sesdone">✅ Entrenamiento terminado: <b>${ses.mins} min</b> · ${ses.exercises} ${ses.exercises === 1 ? 'ejercicio' : 'ejercicios'} · ${ses.sets} ${ses.sets === 1 ? 'serie' : 'series'} · ${num(ses.vol)} kg <button class="ghost sm" data-act="resume">Seguir entrenando</button></div>`
+        ? `<div class="banner sesdone">✅ Entrenamiento terminado: <b>${ses.mins} min</b> · ${ses.exercises} ${ses.exercises === 1 ? 'ejercicio' : 'ejercicios'} · ${ses.sets} ${ses.sets === 1 ? 'serie' : 'series'} · ${num(ses.vol)} kg <div class="row" style="gap:6px;margin-top:6px"><button class="ghost sm" data-act="resume">Seguir entrenando</button><button class="ghost sm danger-t" data-act="discard">Eliminar</button></div></div>`
         : list.length
           ? '<button class="primary block start-btn" data-act="start">▶ Empezar entrenamiento</button>'
           : '';
@@ -286,6 +286,7 @@ function onClick(e) {
     toast('⏱ ¡A entrenar! Registra cada serie con Registrar ›');
   } else if (act === 'resume') ensureSession();
   else if (act === 'finish') return finishSheet();
+  else if (act === 'discard') return discardSheet();
   else if (act === 'library') return librarySheet();
   else if (act === 'addex') {
     const r = ex().routines.find((x) => x.id === rid);
@@ -334,11 +335,19 @@ function logSheet(rid, id) {
   const muscle = muscleOf(it.name);
   openSheet(
     `<div class="row between"><h3>${esc(it.name)}</h3>${prev || best ? '<button class="ghost sm" id="hist">Historial</button>' : ''}</div>
+    ${
+      state.settings.gymTips === false
+        ? ''
+        : `<div class="gymtip" id="tip"><b>💡 Cómo registrar</b>
+      <ul><li>Ajusta las <b>repeticiones</b> y los <b>kilos</b> con − y +, o toca el número para escribirlo.</li>
+      <li>Toca <b>✓</b> al terminar cada serie: se guarda y parte el descanso.</li>
+      <li>Toca el <b>número de la serie</b> para marcarla como <b>C</b> calentamiento, <b>D</b> dropset o <b>F</b> al fallo.</li></ul>
+      <button type="button" class="ghost sm" id="tipok">Entendido, no mostrar más</button></div>`
+    }
     <div class="small muted" style="margin-top:-4px">${[itemTxt(it) ? 'Plan: ' + esc(itemTxt(it)) : '', muscle, it.note ? esc(it.note) : ''].filter(Boolean).join(' · ')}</div>
     ${prev ? `<div class="small" style="margin-top:4px">Última vez (${shortDate(prev.d)}): ${prev.sets.map(setTxt).join(' · ')}</div>` : ''}
     ${best ? `<div class="small">Tu mejor marca: <b>${kgTxt(best)} kg</b></div>` : ''}
-    <div class="sethead"><span>Serie</span><span>Reps</span><span>Kg</span><span></span></div>
-    <div class="small muted" style="margin-top:2px">Toca el número de la serie para cambiar su tipo: <b>C</b> calentamiento · <b>D</b> dropset · <b>F</b> al fallo.</div>
+    <div class="sethead"><span>Serie</span><span>Repeticiones</span><span>Peso (kg)</span><span>Hecha</span></div>
     <div id="rows" class="setrows"></div>
     <button class="ghost block sm" id="addset">+ Agregar serie</button>
     <div id="padwrap" class="padwrap" hidden><div class="row between small"><span id="padlbl"></span><button class="ghost sm" id="padx">Listo</button></div><div id="pad"></div></div>
@@ -364,8 +373,8 @@ function logSheet(rid, id) {
         $('#rows').innerHTML = rows
           .map(
             (x, i) => `<div class="setrow ${x.done ? 'on' : ''}"><button type="button" class="sn st-${x.k || 'e'}" data-type="${i}" aria-label="Serie ${i + 1}: ${SET_TYPES.find((t) => t.k === (x.k || '')).name}. Tocar para cambiar el tipo">${label(i)}</button>
-            <div class="stp"><button type="button" data-f="r" data-i="${i}" data-d="-1" aria-label="Menos repeticiones">−</button><b class="sv" data-f="r" data-i="${i}">${x.r}</b><button type="button" data-f="r" data-i="${i}" data-d="1" aria-label="Más repeticiones">+</button></div>
-            <div class="stp"><button type="button" data-f="kg" data-i="${i}" data-d="-1" aria-label="Menos peso">−</button><b class="sv" data-f="kg" data-i="${i}">${kgTxt(x.kg)}</b><button type="button" data-f="kg" data-i="${i}" data-d="1" aria-label="Más peso">+</button></div>
+            <div class="stp"><button type="button" data-f="r" data-i="${i}" data-d="-1" aria-label="Menos repeticiones">−</button><span class="sv" data-f="r" data-i="${i}"><b>${x.r}</b><small>reps</small></span><button type="button" data-f="r" data-i="${i}" data-d="1" aria-label="Más repeticiones">+</button></div>
+            <div class="stp"><button type="button" data-f="kg" data-i="${i}" data-d="-1" aria-label="Menos peso">−</button><span class="sv" data-f="kg" data-i="${i}"><b>${kgTxt(x.kg)}</b><small>kg</small></span><button type="button" data-f="kg" data-i="${i}" data-d="1" aria-label="Más peso">+</button></div>
             <button type="button" class="check ${x.done ? 'on' : ''}" data-done="${i}" aria-label="Serie ${i + 1} hecha" aria-pressed="${x.done}">✓</button></div>`
           )
           .join('');
@@ -380,7 +389,7 @@ function logSheet(rid, id) {
         for (let j = i + 1; j < rows.length; j++)
           if (!rows[j].done && rows[j][f] === old) {
             rows[j][f] = v;
-            const el = sheet.querySelector(`.sv[data-f="${f}"][data-i="${j}"]`);
+            const el = sheet.querySelector(`.sv[data-f="${f}"][data-i="${j}"] b`);
             if (el) el.textContent = f === 'kg' ? kgTxt(v) : v;
           }
         if (rows[i].done) persist();
@@ -417,7 +426,7 @@ function logSheet(rid, id) {
         if (b.dataset.d) {
           const step = f === 'kg' ? 2.5 : 1;
           setVal(i, f, Math.max(0, Math.round((rows[i][f] + step * +b.dataset.d) * 10) / 10));
-          b.parentElement.querySelector('.sv').textContent = f === 'kg' ? kgTxt(rows[i][f]) : rows[i][f];
+          b.parentElement.querySelector('.sv b').textContent = f === 'kg' ? kgTxt(rows[i][f]) : rows[i][f];
           return;
         }
         // tocar el número: escribirlo con el teclado de la app
@@ -425,7 +434,7 @@ function logSheet(rid, id) {
         b.classList.add('editing');
         $('#padwrap').hidden = false;
         $('#padlbl').textContent = `Serie ${i + 1} · ${f === 'kg' ? 'kilos' : 'repeticiones'}`;
-        numberPad($('#pad'), b, {
+        numberPad($('#pad'), b.querySelector('b'), {
           value: rows[i][f],
           decimal: f === 'kg',
           max: f === 'kg' ? 500 : 100,
@@ -456,6 +465,11 @@ function logSheet(rid, id) {
         draw();
       });
       $('#hist')?.addEventListener('click', () => historySheet(it.name));
+      $('#tipok')?.addEventListener('click', () => {
+        state.settings.gymTips = false;
+        save();
+        $('#tip').remove();
+      });
       draw();
     },
     () => render()
@@ -523,6 +537,41 @@ function finishSheet() {
         close();
         render();
       });
+    }
+  );
+}
+
+// Eliminar el entrenamiento del día (si se empezó por error): el cronómetro y, si se quiere, lo registrado.
+function discardSheet() {
+  const ses = sessionOf(date);
+  const logged = ses.exercises;
+  openSheet(
+    `<h3>¿Eliminar el entrenamiento de ${isToday() ? 'hoy' : 'este día'}?</h3>
+    <p class="small muted" style="margin-top:0">${
+      logged
+        ? `Tiene ${logged} ${logged === 1 ? 'ejercicio registrado' : 'ejercicios registrados'} (${ses.sets + ses.warm} ${ses.sets + ses.warm === 1 ? 'serie' : 'series'}). Puedes borrar todo o solo detener el cronómetro y conservar lo registrado.`
+        : 'Se detiene el cronómetro y no cuenta para la racha.'
+    }</p>
+    <div class="actions" style="flex-wrap:wrap"><button class="ghost" data-close>Cancelar</button>${logged ? '<button id="keep">Solo el cronómetro</button>' : ''}<button class="danger" id="all">${logged ? 'Borrar todo' : 'Eliminar'}</button></div>`,
+    (sheet, close) => {
+      const end = (msg) => {
+        stopRest();
+        save();
+        close();
+        toast(msg);
+        render();
+      };
+      sheet.querySelector('#keep')?.addEventListener('click', () => {
+        cancelSession(date);
+        end('Cronómetro eliminado; lo registrado se mantiene');
+      });
+      sheet.querySelector('#all').onclick = () => {
+        cancelSession(date);
+        // se vacía lo registrado ese día (las rutinas agregadas a mano siguen en el día, vacías)
+        for (const rid of Object.keys(ex().done[date] || {})) ex().done[date][rid] = {};
+        delete ex().snap?.[date];
+        end('Entrenamiento eliminado');
+      };
     }
   );
 }

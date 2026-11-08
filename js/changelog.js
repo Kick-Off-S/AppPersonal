@@ -6,6 +6,16 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.19',
+    date: '2026-11-08',
+    title: 'Efecto vidrio y registro más claro',
+    items: [
+      '<b>✨ Efecto vidrio (Liquid Glass):</b> barras y tarjetas translúcidas y barra inferior flotante. Si tu teléfono va lento, apágalo en Ajustes → Apariencia.',
+      '<b>🗑️ Eliminar un entrenamiento</b> empezado por error: toca la ✕ del cronómetro (o "Eliminar" si ya lo terminaste). Puedes borrar todo o solo el cronómetro.',
+      '<b>Registro más claro:</b> los consejos aparecen arriba y cada casilla dice qué es (repeticiones o kg).',
+    ],
+  },
+  {
     v: '4.18',
     date: '2026-11-08',
     title: 'Entrenamiento con cronómetro y racha',
