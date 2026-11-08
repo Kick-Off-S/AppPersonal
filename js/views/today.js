@@ -2,7 +2,7 @@ import { state, save } from '../store.js';
 import { dayTotals, dayMacros, dietStreak, planFor, doneFor, extrasFor, waterOf, latestWeight, mealSnapshot } from '../calc.js';
 import { foodPicker, scaled } from '../foodpicker.js';
 import { mealDetail, macroChips } from './diet.js';
-import { isOn } from '../modules.js';
+import { isOn, discoverHTML, handleDiscover } from '../modules.js';
 import { routinesFor, routineProgress, burnedFor } from './exercise.js';
 import { habitsFor, isDone, toggleHabit, streakOf } from './habits.js';
 import { dosesFor, setDose } from './meds.js';
@@ -47,7 +47,8 @@ function render() {
     ${isOn('meds') ? medsCard() : ''}
     ${isOn('habits') ? habitsCard() : ''}
     ${isOn('exercise') ? exerciseCard() : ''}
-    ${health ? healthBottom() : ''}`;
+    ${health ? healthBottom() : ''}
+    ${discoverHTML()}`;
 
   function healthTop() {
     return `
@@ -162,6 +163,7 @@ function exerciseCard() {
 }
 
 function onClick(e) {
+  if (handleDiscover(e, toast)) return render();
   const t = e.target.closest('[data-act]');
   if (!t) return;
   const { act, id, ml } = t.dataset;

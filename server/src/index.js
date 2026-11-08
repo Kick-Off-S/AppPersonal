@@ -5,8 +5,11 @@
 //     teléfonos tienen un aviso a esa hora (en su zona horaria) y les manda un "aviso vacío". El
 //     propio teléfono arma el mensaje con sus datos (qué medicamento toca, qué hábitos faltan…).
 //  2. Respaldo automático: guarda el respaldo CIFRADO en el teléfono con la contraseña del usuario.
+//  3. Estadísticas anónimas y reportes de fallas: cuántos teléfonos abren la app cada día (solo
+//     versión y tipo de teléfono, sin identificador) y los errores o problemas que se reportan.
+//     Se ven en /admin con la clave ADMIN_TOKEN.
 //
-// Variables: VAPID_PUBLIC (clave pública, texto) y el secreto VAPID_PRIVATE_JWK (clave privada).
+// Variables: VAPID_PUBLIC (clave pública, texto) y los secretos VAPID_PRIVATE_JWK y ADMIN_TOKEN.
 
 const ORIGINS = ['https://kick-off-s.github.io', 'http://localhost:8080', 'http://127.0.0.1:8080'];
 // Solo se envían avisos a servicios de push conocidos (evita usar el servidor para llamar a otras direcciones).
@@ -18,6 +21,8 @@ const DAY = 24 * 3600 * 1000;
 const BACKUP_DAYS = 365;
 const PUSH_DAYS = 90;
 const CLEANUP_CRON = '0 4 * * *';
+const REPORT_DAYS = 90; // reportes de fallas: se borran a los 90 días
+const REPORTS_PER_DAY = 500; // tope diario (evita que alguien llene la base)
 
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const enc = new TextEncoder();
@@ -27,7 +32,7 @@ function cors(req) {
   const o = req.headers.get('Origin');
   return {
     'Access-Control-Allow-Origin': ORIGINS.includes(o) ? o : ORIGINS[0],
-    'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -124,8 +129,46 @@ export async function cleanup(env, now = Date.now()) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM backups WHERE updated < ?').bind(now - BACKUP_DAYS * DAY),
     env.DB.prepare('DELETE FROM subs WHERE updated < ?').bind(now - PUSH_DAYS * DAY),
+    env.DB.prepare('DELETE FROM reports WHERE at < ?').bind(now - REPORT_DAYS * DAY),
   ]);
 }
+
+// ---------- estadísticas y reportes ----------
+const txt = (s, max) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').slice(0, max);
+const PLATFORMS = ['ios-app', 'ios-web', 'android-app', 'android-web', 'desktop', 'otro'];
+export function validPing(b) {
+  if (!b || !/^\d{1,2}\.\d{1,3}$/.test(b.v)) return null;
+  return { v: b.v, p: PLATFORMS.includes(b.p) ? b.p : 'otro' };
+}
+export function validReport(b) {
+  const base = validPing(b);
+  if (!base || !['error', 'user'].includes(b.kind)) return null;
+  const message = txt(b.message, 600).trim();
+  if (!message) return null;
+  return { ...base, kind: b.kind, view: txt(b.view, 30), message, detail: txt(b.detail, 4000) };
+}
+const today = () => new Date().toISOString().slice(0, 10);
+
+const escH = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+async function adminPage(env) {
+  const since = new Date(Date.now() - 30 * DAY).toISOString().slice(0, 10);
+  const { results: days } = await env.DB.prepare('SELECT day, SUM(n) AS n FROM stats WHERE day >= ? GROUP BY day ORDER BY day DESC').bind(since).all();
+  const { results: plat } = await env.DB.prepare('SELECT platform, version, SUM(n) AS n FROM stats WHERE day >= ? GROUP BY platform, version ORDER BY n DESC').bind(since).all();
+  const { results: reps } = await env.DB.prepare('SELECT * FROM reports ORDER BY at DESC LIMIT 150').all();
+  const subs = await env.DB.prepare('SELECT COUNT(*) AS n FROM subs').first();
+  const backups = await env.DB.prepare('SELECT COUNT(*) AS n FROM backups').first();
+  const t = (rows, cols) => `<table><tr>${cols.map((c) => `<th>${c[0]}</th>`).join('')}</tr>${rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</table>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Gestión Personal · panel</title>
+  <style>body{font:14px/1.45 -apple-system,system-ui,sans-serif;margin:0;padding:16px;background:#f4f7f6;color:#15201e}h1{font-size:20px}h2{font-size:15px;margin-top:24px;color:#0f766e}table{border-collapse:collapse;width:100%;background:#fff;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid #dde6e4;text-align:left;vertical-align:top}th{background:#e2f1ef}td pre{white-space:pre-wrap;margin:0;font-size:11.5px;max-height:160px;overflow:auto}.k{display:flex;gap:10px;flex-wrap:wrap}.k div{background:#fff;padding:10px 14px;border-radius:10px}.k b{display:block;font-size:22px}.user{background:#fff7e6}</style></head><body>
+  <h1>Gestión Personal · panel</h1>
+  <div class="k"><div><b>${escH(days[0]?.n || 0)}</b>teléfonos hoy (o último día)</div><div><b>${escH(Math.max(0, ...days.map((d) => d.n)))}</b>máximo en un día (30 días)</div><div><b>${escH(subs?.n || 0)}</b>con notificaciones</div><div><b>${escH(backups?.n || 0)}</b>con respaldo en la nube</div><div><b>${escH(reps.length)}</b>reportes recientes</div></div>
+  <h2>Teléfonos que abrieron la app por día</h2>${t(days, [['Día', (r) => escH(r.day)], ['Teléfonos', (r) => escH(r.n)]])}
+  <h2>Por tipo de teléfono y versión (30 días, aperturas)</h2>${t(plat, [['Teléfono', (r) => escH(r.platform)], ['Versión', (r) => escH(r.version)], ['Aperturas', (r) => escH(r.n)]])}
+  <h2>Reportes y errores</h2>${t(reps, [['Fecha', (r) => escH(new Date(r.at).toLocaleString('es-CL', { timeZone: 'America/Santiago' }))], ['Tipo', (r) => (r.kind === 'user' ? '🙋 usuario' : '⚠️ error')], ['Versión / teléfono / pantalla', (r) => `${escH(r.version)}<br>${escH(r.platform)}<br>${escH(r.view)}`], ['Mensaje', (r) => `<b>${escH(r.message)}</b>${r.detail ? `<pre>${escH(r.detail)}</pre>` : ''}`]])}
+  </body></html>`;
+}
+// Comparación de la clave sin cortar en el primer carácter distinto.
+const sameKey = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && [...a].reduce((x, c, i) => x | (c.charCodeAt(0) ^ b.charCodeAt(i)), 0) === 0;
 
 // ---------- rutas ----------
 async function route(req, env) {
@@ -133,6 +176,24 @@ async function route(req, env) {
   const [, kind, id] = url.pathname.split('/');
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
   if (!kind) return json(req, { ok: true, app: 'gestion-personal-api' });
+  if (kind === 'ping' && req.method === 'POST') {
+    const p = validPing(await body(req, 500));
+    if (!p) return json(req, { error: 'datos' }, 400);
+    await env.DB.prepare('INSERT INTO stats (day, version, platform, n) VALUES (?1, ?2, ?3, 1) ON CONFLICT(day, version, platform) DO UPDATE SET n = n + 1').bind(today(), p.v, p.p).run();
+    return json(req, { ok: true });
+  }
+  if (kind === 'report' && req.method === 'POST') {
+    const r = validReport(await body(req, 8000));
+    if (!r) return json(req, { error: 'datos' }, 400);
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM reports WHERE at >= ?').bind(Date.parse(today())).first();
+    if ((n?.n || 0) >= REPORTS_PER_DAY) return json(req, { ok: true, skipped: true });
+    await env.DB.prepare('INSERT INTO reports (at, kind, version, platform, view, message, detail) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(Date.now(), r.kind, r.v, r.p, r.view, r.message, r.detail).run();
+    return json(req, { ok: true });
+  }
+  if (kind === 'admin' && req.method === 'GET') {
+    if (!env.ADMIN_TOKEN || !sameKey(url.searchParams.get('k') || '', env.ADMIN_TOKEN)) return new Response('No autorizado', { status: 403 });
+    return new Response(await adminPage(env), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" } });
+  }
   if (!ID_RE.test(id || '')) return json(req, { error: 'id' }, 400);
 
   if (kind === 'push') {

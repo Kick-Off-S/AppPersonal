@@ -53,13 +53,13 @@ test('mensaje del aviso: medicamento de esta hora no tomado, hábitos y pagos pe
 
 test('servidor: borra respaldos y avisos sin uso con los plazos que informa el aviso de privacidad', async () => {
   const { cleanup, due } = await import('../server/src/index.js');
-  const { BACKUP_DAYS, PUSH_DAYS } = await import('../js/privacy.js');
+  const { BACKUP_DAYS, PUSH_DAYS, REPORT_DAYS } = await import('../js/privacy.js');
   const calls = [];
   const env = { DB: { prepare: (sql) => ({ bind: (...a) => ({ sql, a }) }), batch: async (q) => calls.push(...q) } };
   const now = Date.UTC(2026, 9, 25);
   await cleanup(env, now);
   const day = 24 * 3600 * 1000;
-  assert.deepEqual(calls.map((c) => [c.sql.split(' ')[2], (now - c.a[0]) / day]), [['backups', BACKUP_DAYS], ['subs', PUSH_DAYS]]);
+  assert.deepEqual(calls.map((c) => [c.sql.split(' ')[2], (now - c.a[0]) / day]), [['backups', BACKUP_DAYS], ['subs', PUSH_DAYS], ['reports', REPORT_DAYS]]);
   // avisos: hora exacta, día de la semana o fecha puntual
   const l = { time: '08:00', date: '2026-10-26', wd: 0 };
   assert.ok(due([{ t: '08:00', d: [0, 3] }], l));
@@ -97,4 +97,24 @@ test('comidas del plan: avisa a su hora los días que corresponde y no si ya se 
   assert.equal(out[0].body, 'Pollo con arroz');
   st.diet.done = { '2026-10-26': { a: { kcal: 600 } } };
   assert.equal(ctx.compose(st, new Date(2026, 9, 26, 13, 31)).length, 0);
+});
+
+test('servidor: estadísticas y reportes solo aceptan lo previsto (sin datos personales)', async () => {
+  const { validPing, validReport } = await import('../server/src/index.js');
+  assert.deepEqual(validPing({ v: '4.20', p: 'ios-app', extra: 'x' }), { v: '4.20', p: 'ios-app' });
+  assert.deepEqual(validPing({ v: '4.20', p: 'nokia' }), { v: '4.20', p: 'otro' });
+  assert.equal(validPing({ v: '<script>' }), null);
+  const r = validReport({ kind: 'error', v: '4.20', p: 'android-app', view: '#exercise', message: 'x'.repeat(900), detail: 'stack' });
+  assert.equal(r.message.length, 600);
+  assert.equal(validReport({ kind: 'spam', v: '4.20', message: 'hola' }), null);
+  assert.equal(validReport({ kind: 'user', v: '4.20', message: '   ' }), null);
+});
+
+test('errores: el texto técnico no lleva direcciones ni números largos', async () => {
+  const { cleanError } = await import('../js/telemetry.js');
+  const e = new Error('Falló 123456789');
+  e.stack = 'Error: Falló 123456789\n    at render (https://kick-off-s.github.io/AppPersonal/js/views/exercise.js:120:5)\n    at https://otro.sitio/x.js:1:1';
+  const t = cleanError(e);
+  assert.ok(t.includes('js/views/exercise.js:120:5'));
+  assert.ok(!t.includes('https://') && !t.includes('123456789'));
 });

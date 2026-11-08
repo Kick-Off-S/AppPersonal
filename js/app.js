@@ -1,7 +1,7 @@
 import { load, state, save, APP_VERSION, replaceState, defaults, readOnly } from './store.js';
 import { lockEnabled, lockScreen } from './security.js';
 import { hasData, backup, backupAge, backupDue, snoozeBackup } from './backup.js';
-import { MODULES, isOn } from './modules.js';
+import { MODULES, isOn, PROFILES, applyProfile, discoverHTML, handleDiscover } from './modules.js';
 import { esc, openSheet, toast, afterBack } from './util.js';
 import { applyTheme } from './theme.js';
 import { cloudStartup } from './cloud.js';
@@ -9,6 +9,7 @@ import { privacySheet } from './privacy.js';
 import { decodeLoan } from './loanshare.js';
 import { CHANGELOG, newsHTML, historySheet } from './changelog.js';
 import { termsGate, termsSheet } from './terms.js';
+import { ping, reportError, reportSheet, enabled as telemetryOn } from './telemetry.js';
 import { importLoanSheet } from './views/loans.js';
 import * as today from './views/today.js';
 import * as diet from './views/diet.js';
@@ -22,6 +23,7 @@ import * as shopping from './views/shopping.js';
 import * as meds from './views/meds.js';
 
 const ICONS = {
+  report: '<path d="M4 4h16v12H8l-4 4z"/><path d="M12 8v3M12 13.5v.5"/>',
   terms: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
   privacy: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-3.5"/>',
@@ -41,7 +43,7 @@ const ICONS = {
 // module: a qué módulo pertenece cada pestaña (sin module = siempre visible; lista = visible si alguno está activo).
 // El orden define la barra de abajo: caben 5; si hay más, las 4 primeras + "Más".
 const TABS = [
-  { id: 'today', label: 'Hoy', view: today, module: ['health', 'exercise', 'habits', 'meds'] },
+  { id: 'today', label: 'Hoy', view: today, module: ['health', 'habits', 'meds'] },
   { id: 'diet', label: 'Dieta', view: diet, module: 'health' },
   { id: 'exercise', label: 'Ejercicio', view: exercise, module: 'exercise' },
   { id: 'finance', label: 'Gastos', view: finance, module: 'finance', title: 'Gastos y sueldo' },
@@ -61,12 +63,14 @@ const moreTabs = () => (visibleTabs().length > MAX_BAR ? visibleTabs().slice(MAX
 const moreView = {
   mount(el) {
     el.onclick = (e) => {
+      if (handleDiscover(e, toast)) return;
       const a = e.target.closest('[data-act]');
       if (!a) return;
       e.preventDefault();
       if (a.dataset.act === 'privacy') privacySheet();
       if (a.dataset.act === 'history') historySheet(APP_VERSION);
       if (a.dataset.act === 'terms') termsSheet();
+      if (a.dataset.act === 'report') reportSheet();
     };
     el.innerHTML = `<div class="card more">${moreTabs()
       .map(
@@ -78,8 +82,11 @@ const moreView = {
         <div class="grow t">Privacidad y tus datos</div><span class="muted">›</span></a>
       <a class="item" href="#" data-act="terms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.terms}</svg>
         <div class="grow t">Términos y condiciones</div><span class="muted">›</span></a>
+      <a class="item" href="#" data-act="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.report}</svg>
+        <div class="grow t">Reportar un problema</div><span class="muted">›</span></a>
       <a class="item" href="#" data-act="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.history}</svg>
         <div class="grow t">Historial de versiones</div><span class="muted">v${APP_VERSION} ›</span></a></div>
+      ${discoverHTML()}
       <p class="small muted" style="text-align:center">Elige qué módulos ver en <a href="#settings">Ajustes</a>.</p>`;
   },
 };
@@ -124,11 +131,12 @@ function show() {
 // Si una sección falla (por ejemplo, datos dañados), en vez de una pantalla rota se ofrece respaldar.
 function rescue(err) {
   console.error(err);
+  reportError(err, 'pantalla ' + (location.hash.slice(1) || 'inicio'));
   $view.onclick = null;
   $view.innerHTML = `<div class="card"><h2>Algo salió mal</h2>
     <p class="small" style="margin-top:0">Esta sección no se pudo mostrar. Tus datos siguen guardados en el teléfono.</p>
     <div class="actions"><button class="primary" id="rs-backup">Guardar respaldo</button><button id="rs-retry">Reintentar</button></div>
-    <p class="small muted" style="margin-bottom:0">Si se repite, guarda un respaldo y avisa a quien te compartió la app. Detalle: ${esc(String(err?.message || err))}</p></div>`;
+    <p class="small muted" style="margin-bottom:0">${telemetryOn() ? 'Ya enviamos un aviso automático del error (sin tus datos). ' : ''}Si se repite, guarda un respaldo y usa "Reportar un problema" en Más. Detalle: ${esc(String(err?.message || err))}</p></div>`;
   $view.querySelector('#rs-backup').onclick = () => backup();
   $view.querySelector('#rs-retry').onclick = () => show();
 }
@@ -196,6 +204,7 @@ if (shared) openShared();
 else show();
 if (!shared && !welcome()) whatsNew();
 cloudStartup(); // horas de aviso al día y respaldo automático pendiente
+ping(); // estadística anónima diaria (versión y tipo de teléfono)
 
 // ---------- bienvenida: elegir módulos la primera vez ----------
 // Va a Ajustes y abre una de sus hojas (p. ej., activar o recuperar el respaldo en la nube).
@@ -218,13 +227,19 @@ function welcome() {
 function welcomeSheet(chosen) {
   openSheet(
     `<h3>¡Bienvenido!</h3>
-    <p class="muted small" style="margin-top:0">¿Qué quieres usar? Puedes cambiarlo cuando quieras en <b>Ajustes</b>.</p>
+    <p class="muted small" style="margin-top:0">¿Para qué la vas a usar? Elige un perfil: después puedes activar más funciones en <b>Ajustes → Módulos</b>.</p>
+    <div class="profiles">${PROFILES.filter((p) => p.id !== 'all')
+      .map((p) => `<button type="button" class="profile" data-p="${p.id}"><span class="pe">${p.emoji}</span><span class="grow"><b>${p.name}</b><small>${p.desc}</small></span><span class="muted">›</span></button>`)
+      .join('')}</div>
+    <button type="button" class="ghost block sm" id="custom">Elegir módulos uno por uno</button>
+    <div id="custom-box" hidden>
     <div id="mods">${MODULES.map(
       (m) => `<label class="mod"><input type="checkbox" class="switch" data-m="${m.id}" ${chosen.has(m.id) ? 'checked' : ''}>
         <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></span></label>`
     ).join('')}</div>
-    <div class="privacy-intro small"><b>🔒 Tus datos son tuyos.</b> Todo lo que registras queda solo en este teléfono: sin cuentas, sin publicidad y sin compartir con nadie. Las notificaciones y el respaldo en la nube son opcionales y te pedimos permiso antes de activarlos. <a href="#" id="priv">Cómo tratamos tus datos</a></div>
     <div class="actions"><button class="primary" id="go">Empezar</button></div>
+    </div>
+    <div class="privacy-intro small"><b>🔒 Tus datos son tuyos.</b> Todo lo que registras queda solo en este teléfono: sin cuentas, sin publicidad y sin compartir con nadie. Las notificaciones y el respaldo en la nube son opcionales y te pedimos permiso antes de activarlos; solo se envían estadísticas anónimas de uso y errores, que puedes apagar. <a href="#" id="priv">Cómo tratamos tus datos</a></div>
     <div class="banner" style="margin-top:14px"><b>¿Ya usabas la app?</b> Si cambiaste de teléfono o se borró la app, recupera tus datos:
       <div class="actions"><button class="sm" id="r-cloud">Desde la nube</button><button class="sm" id="r-file">Desde un archivo</button></div></div>`,
     (sheet, close) => {
@@ -239,6 +254,20 @@ function welcomeSheet(chosen) {
         openInSettings(() => {
           document.getElementById('backup-card')?.scrollIntoView({ block: 'center' });
           toast('Toca "Restaurar" y elige tu archivo de respaldo');
+        });
+      };
+      sheet.querySelector('#custom').onclick = () => {
+        sheet.querySelector('#custom-box').hidden = false;
+        sheet.querySelector('#custom').hidden = true;
+      };
+      sheet.querySelector('.profiles').onclick = (e) => {
+        const b = e.target.closest('[data-p]');
+        if (!b) return;
+        const p = applyProfile(b.dataset.p);
+        close();
+        afterBack(() => {
+          location.hash = '#' + p.home;
+          toast(`Perfil ${p.name} listo`);
         });
       };
       sheet.querySelector('#mods').onchange = (e) => {

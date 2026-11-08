@@ -601,3 +601,12 @@ button.lib-item { display: flex; justify-content: space-between; width: 100%; mi
 @media (prefers-reduced-transparency: reduce) {
   [data-glass="on"] .card, [data-glass="on"] .tabbar, [data-glass="on"] .sheet, [data-glass="on"] .topbar { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
+/* perfiles */
+.profiles { display: grid; gap: 8px; margin: 10px 0; }
+button.profile { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left; height: auto; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 14px; }
+button.profile .pe { font-size: 26px; }
+button.profile b { display: block; font-size: 16px; }
+button.profile small { display: block; color: var(--muted); font-weight: 400; font-size: 13px; margin-top: 2px; }
+.mchip.sel { background: var(--primary); color: var(--primary-ink); }
+button.mchip { cursor: pointer; color: var(--text); font-weight: 600; }
+.discover .item .s { font-size: 12.5px; }

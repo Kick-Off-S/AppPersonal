@@ -2,9 +2,10 @@
 // Si cambias lo que se envía al servidor o los plazos de borrado (server/src/index.js), actualiza este texto.
 import { openSheet } from './util.js';
 
-export const PRIVACY_DATE = '30-10-2026';
+export const PRIVACY_DATE = '08-11-2026';
 export const BACKUP_DAYS = 365; // respaldo en la nube sin actualizar → se borra
 export const PUSH_DAYS = 90; // avisos de un teléfono que no abre la app → se borran
+export const REPORT_DAYS = 90; // reportes de errores y problemas → se borran
 
 export function privacySheet(onClose) {
   openSheet(
@@ -23,11 +24,14 @@ export function privacySheet(onClose) {
       <p><b>Préstamos compartidos:</b> si compartes un préstamo, el enlace lleva el monto, las cuotas, las fechas, la nota y tu nombre. Va directo de tu teléfono a la otra persona (por WhatsApp u otra app que elijas): no pasa por el servidor de la app.</p>
       <p><b>Código de barras:</b> al escanear, solo el número del código se consulta en Open Food Facts.</p>
 
+      <h4>Estadísticas anónimas y errores (puedes apagarlas)</h4>
+      <p>Una vez al día la app avisa su versión y el tipo de teléfono (iPhone o Android), sin ningún identificador, para saber cuántas personas la usan. Si algo falla, envía el error técnico y la pantalla donde pasó, nunca lo que registras. Viene activado y lo apagas en Ajustes → Privacidad. Si usas "Reportar un problema", se envía lo que escribes (y el diagnóstico técnico si lo marcas).</p>
+
       <h4>Dónde se guarda</h4>
       <p>En servidores de <b>Cloudflare</b> (empresa de Estados Unidos, con centros de datos en varios países, también fuera de Chile). El servidor de la app no guarda registros de visitas; Cloudflare puede procesar datos técnicos, como la dirección IP, para entregar el servicio.</p>
 
       <h4>Cuánto tiempo</h4>
-      <p>El respaldo se actualiza solo cada vez que usas la app. Si pasa <b>${Math.round(BACKUP_DAYS / 30.4)} meses</b> sin actualizarse, se borra del servidor. Los avisos de un teléfono que no abre la app en <b>${PUSH_DAYS} días</b> se borran (se reactivan solos al volver a abrirla).</p>
+      <p>El respaldo se actualiza solo cada vez que usas la app. Si pasa <b>${Math.round(BACKUP_DAYS / 30.4)} meses</b> sin actualizarse, se borra del servidor. Los avisos de un teléfono que no abre la app en <b>${PUSH_DAYS} días</b> se borran (se reactivan solos al volver a abrirla). Los reportes de errores y problemas se borran a los ${REPORT_DAYS} días.</p>
 
       <h4>Datos de salud</h4>
       <p>Medicamentos, peso y dieta son datos sensibles. Por eso nunca salen del teléfono sin cifrar y te pedimos tu consentimiento antes de activar la nube. Puedes retirarlo cuando quieras desactivándola.</p>

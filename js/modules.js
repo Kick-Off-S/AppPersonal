@@ -23,3 +23,58 @@ export function setModule(id, on) {
   window.dispatchEvent(new Event('modules-changed'));
   return true;
 }
+
+// ---------- perfiles: grupos de módulos para empezar simple ----------
+export const PROFILES = [
+  { id: 'gym', emoji: '🏋️', name: 'Solo gimnasio', desc: 'Rutinas, series, descanso, marcas y racha. Lo más simple.', mods: ['exercise'], home: 'exercise' },
+  { id: 'fit', emoji: '💪', name: 'Gimnasio y alimentación', desc: 'El gimnasio más calorías, proteína, agua y peso.', mods: ['exercise', 'health'], home: 'today' },
+  { id: 'health', emoji: '🥗', name: 'Salud', desc: 'Dieta, peso, ejercicio, hábitos y medicamentos.', mods: ['health', 'exercise', 'habits', 'meds'], home: 'today' },
+  { id: 'money', emoji: '💰', name: 'Finanzas', desc: 'Sueldo, gastos, cuotas, tarjetas, préstamos y ahorro.', mods: ['finance'], home: 'finance' },
+  { id: 'all', emoji: '✨', name: 'Todo', desc: 'Todos los módulos.', mods: MODULES.map((m) => m.id), home: 'today' },
+];
+export const activeProfile = () => PROFILES.find((p) => MODULES.every((m) => isOn(m.id) === p.mods.includes(m.id))) || null;
+
+// Aplica un perfil: deja activos solo sus módulos (los datos de los demás se conservan).
+export function applyProfile(id) {
+  const p = PROFILES.find((x) => x.id === id);
+  if (!p) return null;
+  state.settings.modules = Object.fromEntries(MODULES.map((m) => [m.id, p.mods.includes(m.id)]));
+  delete state.settings.discoverHidden; // vuelve a mostrar qué más se puede activar
+  save();
+  window.dispatchEvent(new Event('modules-changed'));
+  return p;
+}
+
+// Tarjeta "Más funciones": lo que está apagado y un botón para activarlo ahí mismo.
+const SHORT = {
+  health: 'Calorías, proteína, agua, peso e IMC.',
+  finance: 'Sueldo, gastos, cuotas, tarjetas y ahorro.',
+  exercise: 'Rutinas, series, descanso y marcas.',
+  habits: 'Checks diarios con rachas.',
+  meds: 'Horarios y recordatorios de tomas.',
+  shopping: 'Lista del súper.',
+};
+export function discoverHTML() {
+  const off = MODULES.filter((m) => !isOn(m.id));
+  if (!off.length || state.settings.discoverHidden) return '';
+  return `<div class="card discover"><div class="row between"><h2 style="margin:0">Más funciones</h2><button class="ghost sm" data-discover="hide">Ocultar</button></div>
+    <p class="small muted" style="margin:4px 0 2px">La app también tiene esto. Actívalo cuando quieras, aquí o en <b>Ajustes → Módulos</b>.</p>
+    ${off.map((m) => `<div class="item"><div class="grow"><div class="t">${m.name}</div><div class="s">${SHORT[m.id] || ''}</div></div><button class="sm" data-discover="${m.id}">Activar</button></div>`).join('')}</div>`;
+}
+// Para el onClick de cada pantalla: devuelve true si el toque era de esta tarjeta.
+export function handleDiscover(e, toast) {
+  const b = e.target.closest('[data-discover]');
+  if (!b) return false;
+  const id = b.dataset.discover;
+  if (id === 'hide') {
+    state.settings.discoverHidden = true;
+    save();
+    toast?.('Puedes activarlas en Ajustes → Módulos');
+  } else {
+    setModule(id, true);
+    toast?.(`${MODULES.find((m) => m.id === id).name} activado: aparece en la barra de abajo`);
+    return true; // modules-changed ya redibuja
+  }
+  window.dispatchEvent(new Event('modules-changed'));
+  return true;
+}

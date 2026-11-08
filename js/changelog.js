@@ -6,6 +6,17 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.20',
+    date: '2026-11-08',
+    title: 'Perfiles y reportar problemas',
+    items: [
+      '<b>🏋️ Perfiles:</b> al empezar eliges "Solo gimnasio", "Gimnasio y alimentación", "Salud" o "Finanzas", y la app muestra solo eso. Cámbialo cuando quieras en Ajustes → Módulos.',
+      '<b>Más funciones:</b> una tarjeta te muestra lo que la app también tiene y lo activas con un toque.',
+      '<b>🙋 Reportar un problema</b> (Más o Ajustes): cuéntanos qué falló y llega directo a quien administra la app.',
+      '<b>Estadísticas anónimas:</b> la app avisa una vez al día su versión y tipo de teléfono, y los errores técnicos, sin tus datos. Se apaga en Ajustes → Privacidad.',
+    ],
+  },
+  {
     v: '4.19',
     date: '2026-11-08',
     title: 'Efecto vidrio y registro más claro',

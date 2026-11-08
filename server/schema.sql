@@ -17,3 +17,22 @@ CREATE TABLE IF NOT EXISTS backups (
   size INTEGER NOT NULL,
   updated INTEGER NOT NULL
 );
+-- Estadísticas anónimas: cuántas veces se abrió la app por día, versión y tipo de teléfono
+-- (cada teléfono avisa como máximo una vez al día; no hay identificador).
+CREATE TABLE IF NOT EXISTS stats (
+  day TEXT NOT NULL,            -- YYYY-MM-DD (UTC)
+  version TEXT NOT NULL,        -- versión de la app (ej: 4.20)
+  platform TEXT NOT NULL,       -- ios-app, ios-web, android-app, android-web, desktop, otro
+  n INTEGER NOT NULL,
+  PRIMARY KEY (day, version, platform)
+);
+-- Reportes de fallas: errores automáticos (sin datos personales) y problemas que escribe el usuario.
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at INTEGER NOT NULL,
+  kind TEXT NOT NULL,           -- error | user
+  version TEXT, platform TEXT, view TEXT,
+  message TEXT NOT NULL,
+  detail TEXT
+);
+CREATE INDEX IF NOT EXISTS reports_at ON reports (at);

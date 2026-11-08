@@ -6,6 +6,7 @@ import { esc, uid, num, openSheet, toast, todayStr, addDays, dayLabel, weekdayIn
 import { lineChart } from '../charts.js';
 import { LIBRARY, MUSCLES, muscleOf, restFor, historyOf, bestBefore, lastSession, records, setsByMuscle, sessionOf, TEMPLATES, startRest, stopRest, SET_TYPES, nextType, startSession, finishSession, cancelSession, streak, monthCount } from '../gym.js';
 import { key } from '../merchants.js';
+import { discoverHTML, handleDiscover } from '../modules.js';
 
 // MET aproximados (gasto energético) para estimar calorías: kcal = MET × kg × horas.
 const INTENSITY = { suave: { label: 'Suave', met: 3.5 }, moderada: { label: 'Moderada', met: 5 }, alta: { label: 'Alta', met: 7 } };
@@ -219,7 +220,8 @@ function render() {
           : '<div class="small muted" style="margin-top:8px">Cada rutina tiene sus ejercicios (series, repeticiones, peso o minutos) y los días en que la haces.</div>'
       }
       <button class="ghost block sm" data-act="library" style="margin-top:6px">📚 Biblioteca de ejercicios por músculo</button>
-    </div>`;
+    </div>
+    ${discoverHTML()}`;
 }
 
 function routineCard(r, wd) {
@@ -247,6 +249,7 @@ function routineCard(r, wd) {
 }
 
 function onClick(e) {
+  if (handleDiscover(e, toast)) return render();
   const t = e.target.closest('[data-act]');
   if (!t) return;
   const { act, id, rid } = t.dataset;

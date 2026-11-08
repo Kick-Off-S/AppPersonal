@@ -1,7 +1,7 @@
 import { state, save, replaceState, defaults, APP_VERSION, VERSION, getPrevious, diagLog } from '../store.js';
 import { backup, backupAge, hasData as anyData, exportExpensesCSV } from '../backup.js';
 import { esc, toast, install, isAndroid } from '../util.js';
-import { MODULES, isOn, setModule } from '../modules.js';
+import { MODULES, isOn, setModule, PROFILES, activeProfile, applyProfile } from '../modules.js';
 import * as cloud from '../cloud.js';
 import { askBackupPassword, lockEnabled, setPin, checkPin, pinPad, biometricAvailable, registerBiometric } from '../security.js';
 import { openSheet } from '../util.js';
@@ -9,6 +9,7 @@ import { PALETTES, MODES, setTheme } from '../theme.js';
 import { privacySheet } from '../privacy.js';
 import { historySheet } from '../changelog.js';
 import { termsSheet } from '../terms.js';
+import { reportSheet } from '../telemetry.js';
 
 let root;
 
@@ -54,7 +55,9 @@ function render() {
     </div>
 
     <div class="card"><h2>Módulos</h2>
-      <p class="small muted" style="margin-top:0">Elige qué quieres ver en la app. Lo que ocultes no se borra: al activarlo de nuevo vuelve todo.</p>
+      <div class="small muted">Perfiles rápidos</div>
+      <div class="mchips" style="margin-bottom:10px">${PROFILES.map((p) => `<button type="button" class="mchip ${activeProfile()?.id === p.id ? 'ok sel' : ''}" data-act="profile" data-p="${p.id}">${p.emoji} ${p.name}</button>`).join('')}</div>
+      <p class="small muted" style="margin-top:0">O elige uno por uno qué quieres ver en la app. Lo que ocultes no se borra: al activarlo de nuevo vuelve todo.</p>
       ${MODULES.map(
         (m) => `<label class="mod"><input type="checkbox" class="switch" data-mod="${m.id}" ${isOn(m.id) ? 'checked' : ''}>
           <span class="grow"><b>${esc(m.name)}</b><small>${esc(m.desc)} Pestañas: ${esc(m.tabs.join(', '))}.</small></span></label>`
@@ -86,6 +89,9 @@ function render() {
           : ''
       }
       <button class="ghost block sm" data-act="privacy" style="margin-top:8px">Aviso de privacidad: qué datos se guardan y dónde</button>
+      <label class="mod"><input type="checkbox" class="switch" data-tele ${state.settings.telemetry === false ? '' : 'checked'}>
+        <span class="grow"><b>Estadísticas anónimas y errores</b><small>Una vez al día, la versión y el tipo de teléfono; y si algo falla, el error técnico. Nunca lo que registras. Ayuda a mejorar la app.</small></span></label>
+      <button class="ghost block sm" data-act="report">Reportar un problema</button>
       <button class="ghost block sm" data-act="terms">Términos y condiciones${state.settings.terms?.at ? ` · aceptados el ${new Date(state.settings.terms.at).toLocaleDateString('es-CL')}` : ''}</button>
     </div>
 
@@ -393,6 +399,11 @@ function onChange(e) {
     return toast('Hora actualizada');
   }
   if (e.target.dataset.glass !== undefined) return setTheme({ glass: e.target.checked });
+  if (e.target.dataset.tele !== undefined) {
+    state.settings.telemetry = e.target.checked;
+    save();
+    return toast(e.target.checked ? 'Gracias: nos ayudas a mejorar la app' : 'Estadísticas y errores desactivados');
+  }
   if (e.target.dataset.sec) return onSecurity(e.target.dataset.sec, e.target.checked, e.target);
   if (e.target.dataset.mod) {
     if (!setModule(e.target.dataset.mod, e.target.checked)) {
@@ -421,6 +432,11 @@ async function onClick(e) {
     return p.userChoice.then((c) => (toast(c.outcome === 'accepted' ? 'Instalando… búscala en tu pantalla de inicio' : 'Instalación cancelada'), render()));
   }
   if (t.dataset.act === 'privacy') return privacySheet();
+  if (t.dataset.act === 'report') return reportSheet();
+  if (t.dataset.act === 'profile') {
+    const p = applyProfile(t.dataset.p);
+    return toast(`Perfil ${p.name} activado`);
+  }
   if (t.dataset.act === 'history') return e.preventDefault(), historySheet(APP_VERSION);
   if (t.dataset.act === 'terms') return termsSheet();
   if (t.dataset.act === 'push-off') return cloud.disablePush().then(() => ((pushOn = false), render(), toast('Notificaciones desactivadas')));
