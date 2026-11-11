@@ -4,7 +4,7 @@ import { state, save, routineSnap } from '../store.js';
 import { latestWeight } from '../calc.js';
 import { esc, uid, num, openSheet, toast, todayStr, addDays, dayLabel, weekdayIndex, shortDate, vibrate, numberPad, DAYS, DAYS_SHORT } from '../util.js';
 import { lineChart } from '../charts.js';
-import { LIBRARY, MUSCLES, muscleOf, restFor, historyOf, bestBefore, lastSession, records, setsByMuscle, sessionOf, TEMPLATES, startRest, stopRest, SET_TYPES, nextType, startSession, finishSession, cancelSession, streak, monthCount } from '../gym.js';
+import { LIBRARY, MUSCLES, muscleOf, restFor, historyOf, bestBefore, lastSession, records, setsByMuscle, sessionOf, TEMPLATES, startRest, stopRest, SET_TYPES, nextType, startSession, finishSession, cancelSession, streak, monthCount, noteOf, setNote, lastNote } from '../gym.js';
 import { key } from '../merchants.js';
 import { discoverHTML, handleDiscover } from '../modules.js';
 
@@ -237,9 +237,12 @@ function routineCard(r, wd) {
         const d = done[it.id];
         const sets = d?.sets || [];
         const sub = sets.length ? `${sets.length} ${sets.length === 1 ? 'serie' : 'series'}: ${sets.map(setTxt).join(' · ')}` : itemTxt({ ...it, kg: d?.kg || it.kg });
+        const today = noteOf(it.name, date);
+        const prevNote = !today && !d ? lastNote(it.name, date) : null;
+        const noteLine = today ? `<div class="s note-line">📝 ${esc(today)}</div>` : prevNote ? `<div class="s note-line remind">📝 La última vez: ${esc(prevNote.note)}</div>` : '';
         return `<div class="item ${d ? 'done' : ''}">
         <button class="check ${d ? 'on' : ''}" data-act="tick" data-rid="${r.id}" data-id="${it.id}" aria-label="Marcar como hecho" aria-pressed="${!!d}">✓</button>
-        <div class="grow" data-act="detail" data-rid="${r.id}" data-id="${it.id}"><div class="t">${esc(it.name)}</div><div class="s">${esc(sub)}${it.note ? ' · ' + esc(it.note) : ''}</div></div>
+        <div class="grow" data-act="detail" data-rid="${r.id}" data-id="${it.id}"><div class="t">${esc(it.name)}</div><div class="s">${esc(sub)}${it.note ? ' · ' + esc(it.note) : ''}</div>${noteLine}</div>
         <button type="button" class="ghost sm sm-btn" data-act="detail" data-rid="${r.id}" data-id="${it.id}">Registrar ›</button></div>`;
       })
       .join('') || '<div class="small muted">Esta rutina no tiene ejercicios. Edítala en Mis rutinas.</div>'}
@@ -336,6 +339,7 @@ function logSheet(rid, id) {
   let rows = Array.from({ length: Math.max(it.sets || 3, logged.length) }, (_, i) => (logged[i] ? { ...logged[i], done: true } : { ...prefill(i), done: false }));
   let rest = restFor(it);
   const muscle = muscleOf(it.name);
+  const prevNote = lastNote(it.name, date);
   openSheet(
     `<div class="row between"><h3>${esc(it.name)}</h3>${prev || best ? '<button class="ghost sm" id="hist">Historial</button>' : ''}</div>
     ${
@@ -350,9 +354,13 @@ function logSheet(rid, id) {
     <div class="small muted" style="margin-top:-4px">${[itemTxt(it) ? 'Plan: ' + esc(itemTxt(it)) : '', muscle, it.note ? esc(it.note) : ''].filter(Boolean).join(' · ')}</div>
     ${prev ? `<div class="small" style="margin-top:4px">Última vez (${shortDate(prev.d)}): ${prev.sets.map(setTxt).join(' · ')}</div>` : ''}
     ${best ? `<div class="small">Tu mejor marca: <b>${kgTxt(best)} kg</b></div>` : ''}
+    ${prevNote ? `<div class="note-remind">📝 <b>Nota de la última vez</b> (${shortDate(prevNote.d)}): ${esc(prevNote.note)}</div>` : ''}
     <div class="sethead"><span>Serie</span><span>Repeticiones</span><span>Peso (kg)</span><span>Hecha</span></div>
     <div id="rows" class="setrows"></div>
     <button class="ghost block sm" id="addset">+ Agregar serie</button>
+    <label class="field" for="exnote">📝 Nota para la próxima vez <span class="muted small">(opcional)</span></label>
+    <div class="mchips note-chips">${['RIR 0', 'RIR 1', 'RIR 2', 'Podía más reps', 'Subir peso', 'Bajar peso', 'Cuidar la técnica'].map((c) => `<button type="button" class="mchip" data-chip="${c}">${c}</button>`).join('')}</div>
+    <textarea id="exnote" rows="2" maxlength="300" placeholder="Ej: quedé con RIR 1, podía sacar 4 reps más">${esc(noteOf(it.name, date))}</textarea>
     <div id="padwrap" class="padwrap" hidden><div class="row between small"><span id="padlbl"></span><button class="ghost sm" id="padx">Listo</button></div><div id="pad"></div></div>
     <div class="row" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><span class="small muted">Descanso entre series</span>
       <div class="seg" id="rest" style="margin:0;flex:1">${[60, 90, 120, 180].map((v) => `<button type="button" data-v="${v}">${v < 120 ? v + ' s' : v / 60 + ' min'}</button>`).join('')}</div></div>
@@ -468,6 +476,24 @@ function logSheet(rid, id) {
         draw();
       });
       $('#hist')?.addEventListener('click', () => historySheet(it.name));
+      // la nota se guarda al escribir (y queda para recordarla la próxima vez)
+      let noteTimer;
+      const saveNote = () => {
+        setNote(it.name, date, $('#exnote').value);
+        save();
+      };
+      $('#exnote').addEventListener('input', () => {
+        clearTimeout(noteTimer);
+        noteTimer = setTimeout(saveNote, 400);
+      });
+      $('#exnote').addEventListener('blur', saveNote);
+      sheet.querySelector('.note-chips').onclick = (e) => {
+        const c = e.target.closest('[data-chip]')?.dataset.chip;
+        if (!c) return;
+        const ta = $('#exnote');
+        ta.value = ta.value.trim() ? `${ta.value.trim()}, ${c.toLowerCase().startsWith('rir') ? c : c.toLowerCase()}` : c;
+        saveNote();
+      };
       $('#tipok')?.addEventListener('click', () => {
         state.settings.gymTips = false;
         save();
@@ -492,7 +518,7 @@ function historySheet(name) {
     <div style="margin-top:8px">${[...h]
       .reverse()
       .slice(0, 12)
-      .map((x) => `<div class="item"><div class="grow"><div class="t">${shortDate(x.d)}</div><div class="s">${x.sets.map(setTxt).join(' · ')}</div></div><div class="amount small">${x.vol ? num(x.vol) + ' kg' : ''}</div></div>`)
+      .map((x) => `<div class="item"><div class="grow"><div class="t">${shortDate(x.d)}</div><div class="s">${x.sets.map(setTxt).join(' · ')}</div>${x.note ? `<div class="s note-line">📝 ${esc(x.note)}</div>` : ''}</div><div class="amount small">${x.vol ? num(x.vol) + ' kg' : ''}</div></div>`)
       .join('') || '<div class="small muted">Aún no hay series registradas.</div>'}</div>
     <p class="small muted">El 1RM es una estimación del peso máximo para una repetición (fórmula de Epley, con series de hasta 12 repeticiones). No lo pruebes sin supervisión.</p>
     <div class="actions"><button class="primary" data-close>Listo</button></div>`

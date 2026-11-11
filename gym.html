@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gestión Personal · tu entrenamiento, serie a serie</title>
-<meta name="description" content="App gratis para el gym: registra serie a serie, descanso automático, marcas, racha y biblioteca de ejercicios. Sin cuenta y con tus datos en tu teléfono. iPhone y Android.">
+<meta name="description" content="App para el gym, gratis mientras está en desarrollo: registra serie a serie, descanso automático, marcas, racha y biblioteca de ejercicios. Sin cuenta y con tus datos en tu teléfono. iPhone y Android.">
 <meta name="theme-color" content="#0f766e">
 <meta property="og:title" content="Gestión Personal · tu entrenamiento, serie a serie">
-<meta property="og:description" content="Gratis, sin cuenta, para iPhone y Android. Registra tus series, descansos, marcas y racha.">
+<meta property="og:description" content="Gratis por ahora, sin cuenta, para iPhone y Android. Registra tus series, descansos, marcas y racha.">
 <meta property="og:image" content="https://kick-off-s.github.io/AppPersonal/icons/icon-v2-512.png">
 <link rel="icon" href="icons/icon-v2.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v2.png">
@@ -54,6 +54,7 @@ h1 em { font-style: normal; background: linear-gradient(120deg, var(--brand), va
 .lead { font-size: 19px; color: var(--muted); margin: 0 0 22px; max-width: 34ch; }
 .ctas { display: flex; flex-wrap: wrap; gap: 10px; }
 .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; padding: 0; list-style: none; }
+.free-note { margin: 14px 0 0; font-size: 14px; color: var(--muted); max-width: 46ch; }
 .badges li { font-size: 13.5px; font-weight: 600; padding: 7px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--edge); }
 .phone { position: relative; width: min(300px, 78vw); margin: 0 auto; padding: 10px; border-radius: 46px; background: linear-gradient(160deg, #1c2a28, #0b1211); box-shadow: 0 30px 60px rgba(10, 40, 36, .35), inset 0 0 0 2px rgba(255, 255, 255, .08); }
 .phone img { border-radius: 36px; width: 100%; height: auto; aspect-ratio: 750 / 1624; object-fit: cover; object-position: top; }
@@ -136,7 +137,8 @@ footer { padding-block: 26px calc(env(safe-area-inset-bottom) + 30px); color: va
       <h1>Tu entrenamiento, <em>serie a serie</em>.</h1>
       <p class="lead">Registra cada serie, descansa con cuenta regresiva, supera tus marcas y no cortes la racha. Todo desde tu teléfono.</p>
       <div class="ctas"><a class="btn primary" href="#instalar">Instalar en mi teléfono</a><a class="btn ghost" href="./">Abrir la app</a></div>
-      <ul class="badges"><li>✅ Gratis</li><li>👤 Sin cuenta</li><li>🔒 Tus datos en tu teléfono</li><li>📱 iPhone y Android</li></ul>
+      <ul class="badges"><li>✅ Gratis por ahora</li><li>👤 Sin cuenta</li><li>🔒 Tus datos en tu teléfono</li><li>📱 iPhone y Android</li></ul>
+      <p class="free-note">🧪 La app está en desarrollo y es gratis mientras tanto. Más adelante podría tener un plan pagado opcional (estilo freemium); si eso pasa, <b>siempre se avisará antes</b>.</p>
     </div>
     <div class="phone tilt"><img src="img/bienvenida/entrenamiento.jpg" alt="Pantalla de un entrenamiento en curso: cronómetro en 23:54, racha de 17 entrenamientos y la rutina Torso con Press banca registrado" width="750" height="1624"></div>
   </div>
@@ -154,6 +156,7 @@ footer { padding-block: 26px calc(env(safe-area-inset-bottom) + 30px); color: va
             <li>Marca el tipo de serie: <span class="chip c-e">1</span> efectiva, <span class="chip c-w">C</span> calentamiento, <span class="chip c-d">D</span> dropset y <span class="chip c-f">F</span> al fallo.</li>
             <li>Escribes el peso una vez y pasa a las series siguientes.</li>
             <li>Al marcar ✓ parte el <b>descanso</b> con cuenta regresiva, que suena al terminar.</li>
+            <li>📝 Anota cómo te fue ("quedé con RIR 1", "podía 4 reps más") y <b>la próxima vez te lo recuerda</b>.</li>
           </ul>
         </div>
         <div class="shot"><div class="phone"><img src="img/bienvenida/registro.jpg" alt="Registro de Press banca: serie de calentamiento de 40 kg y series efectivas de 70 y 72,5 kg, con el descanso de 1:50 corriendo" loading="lazy" width="750" height="1624"></div></div>
@@ -254,7 +257,7 @@ footer { padding-block: 26px calc(env(safe-area-inset-bottom) + 30px); color: va
   <section>
     <div class="wrap">
       <h2>Preguntas frecuentes</h2>
-      <details class="glass"><summary>¿Es gratis?</summary><p>Sí. No tiene publicidad, no pide tarjeta ni cuenta.</p></details>
+      <details class="glass"><summary>¿Es gratis?</summary><p>Sí, por ahora. La app está en desarrollo y mientras tanto es gratis: sin publicidad, sin tarjeta y sin cuenta. Más adelante podría funcionar estilo freemium (una parte gratis y funciones extra pagadas). Si eso pasa, se avisará con anticipación dentro de la app: nunca se cobrará nada sin avisar ni sin que tú lo aceptes.</p></details>
       <details class="glass"><summary>¿Funciona sin internet?</summary><p>Sí. Después de instalarla funciona sin conexión. Solo necesitas internet para las notificaciones, el respaldo en la nube y las actualizaciones.</p></details>
       <details class="glass"><summary>¿Cómo se actualiza?</summary><p>Sola. Cuando hay una versión nueva, al abrir la app aparece "Hay una versión nueva · Actualizar". En Más → Historial de versiones ves qué cambió.</p></details>
       <details class="glass"><summary>¿Qué pasa si cambio de teléfono?</summary><p>Si activaste el respaldo automático, en el teléfono nuevo eliges "¿Ya usabas la app? Desde la nube" e ingresas tu código y contraseña. También puedes guardar un respaldo en archivo desde Ajustes.</p></details>
@@ -279,7 +282,7 @@ footer { padding-block: 26px calc(env(safe-area-inset-bottom) + 30px); color: va
 </main>
 
 <footer class="wrap">
-  <p>Gestión Personal · gratis, sin cuenta, para iPhone y Android.<br>Al usar la app aceptas sus términos y condiciones y su aviso de privacidad (están dentro de la app, en Más).</p>
+  <p>Gestión Personal · gratis mientras está en desarrollo · sin cuenta · para iPhone y Android.<br>Al usar la app aceptas sus términos y condiciones y su aviso de privacidad (están dentro de la app, en Más).</p>
 </footer>
 
 <script>

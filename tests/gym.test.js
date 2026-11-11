@@ -106,3 +106,19 @@ test('entrenamiento: cronómetro, terminar y racha (los días de descanso no la 
   const st = withDefaults({ exercise: { sessions: { '2026-11-02': { start: 5, end: 'x' }, malo: 'y' } } });
   assert.deepEqual(st.exercise.sessions, { '2026-11-02': { start: 5 } });
 });
+
+test('notas por ejercicio: se guardan por día y la próxima vez se recuerda la última', async () => {
+  const { setNote, noteOf, lastNote, historyOf: hist } = await import('../js/gym.js');
+  Object.assign(state, withDefaults({ exercise: { routines: [routine], done: { '2026-11-03': { r: { a: { n: 'Sentadilla', sets: [{ r: 8, kg: 80 }] } } } } } }));
+  setNote('Sentadilla', '2026-11-03', '  quedé con RIR 1, podía sacar 4 reps más  ');
+  setNote('Sentadilla', '2026-10-27', 'subir peso');
+  assert.equal(noteOf('sentadilla', '2026-11-03'), 'quedé con RIR 1, podía sacar 4 reps más');
+  assert.deepEqual(lastNote('Sentadilla', '2026-11-10'), { d: '2026-11-03', note: 'quedé con RIR 1, podía sacar 4 reps más' });
+  assert.deepEqual(lastNote('Sentadilla', '2026-11-03'), { d: '2026-10-27', note: 'subir peso' }, 'el mismo día no cuenta como "la última vez"');
+  assert.equal(hist('Sentadilla')[0].note, 'quedé con RIR 1, podía sacar 4 reps más');
+  setNote('Sentadilla', '2026-10-27', '   ');
+  assert.equal(lastNote('Sentadilla', '2026-11-03'), null, 'borrar la nota la quita');
+  // se valida al cargar: texto con comillas se conserva; basura se descarta
+  const st = withDefaults({ exercise: { notes: { '2026-11-03': { sentadilla: { note: 'me costó la "bajada"' }, x: 5 }, malo: 'y' } } });
+  assert.deepEqual(st.exercise.notes, { '2026-11-03': { sentadilla: { note: 'me costó la "bajada"' } } });
+});

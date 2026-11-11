@@ -610,3 +610,10 @@ button.profile small { display: block; color: var(--muted); font-weight: 400; fo
 .mchip.sel { background: var(--primary); color: var(--primary-ink); }
 button.mchip { cursor: pointer; color: var(--text); font-weight: 600; }
 .discover .item .s { font-size: 12.5px; }
+/* notas por ejercicio */
+.note-line { margin-top: 2px; font-style: italic; }
+.note-line.remind { color: var(--primary); font-style: normal; font-weight: 600; }
+.note-remind { margin: 8px 0 2px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--warn) 14%, var(--card)); font-size: 14px; }
+.note-chips { margin: 6px 0; }
+.note-chips .mchip { min-height: 32px; padding: 4px 10px; font-size: 12.5px; }
+#exnote { width: 100%; }

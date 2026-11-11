@@ -7,6 +7,8 @@
 // Tipo de serie (k): sin k = efectiva, 'w' calentamiento, 'd' dropset, 'f' al fallo. El calentamiento
 // no cuenta para marcas, volumen ni series por músculo.
 // Entrenamiento del día: exercise.sessions[fecha] = { start, end? } (ms).
+// Notas por ejercicio: exercise.notes[fecha][clave del nombre] = { note } ("quedé con RIR 1"); la
+// próxima vez que se hace ese ejercicio, la app muestra la última nota.
 import { state } from './store.js';
 import { uid } from './util.js';
 import { key } from './merchants.js';
@@ -54,6 +56,27 @@ export const e1rm = (kg, r) => (!kg ? 0 : !r || r === 1 || r > 12 ? kg : kg * (1
 const ex = () => state.exercise;
 const nameIn = (rid, iid, v) => v?.n || ex().routines.find((r) => r.id === rid)?.items.find((x) => x.id === iid)?.name || '';
 
+// ---------- notas ----------
+const notes = () => (ex().notes ||= {});
+export const noteOf = (name, d) => notes()[d]?.[key(name)]?.note || '';
+export function setNote(name, d, text) {
+  const t = String(text || '').trim().slice(0, 300);
+  if (t) (notes()[d] ||= {})[key(name)] = { note: t };
+  else if (notes()[d]) {
+    delete notes()[d][key(name)];
+    if (!Object.keys(notes()[d]).length) delete notes()[d];
+  }
+}
+// Última nota antes de una fecha: { d, note } o null
+export function lastNote(name, d) {
+  const k = key(name);
+  const day = Object.keys(notes())
+    .filter((x) => x < d && notes()[x]?.[k]?.note)
+    .sort()
+    .pop();
+  return day ? { d: day, note: notes()[day][k].note } : null;
+}
+
 // Sesiones de un ejercicio (por nombre, aunque esté en varias rutinas), de la más antigua a la más nueva.
 export function historyOf(name) {
   const k = key(name);
@@ -65,7 +88,7 @@ export function historyOf(name) {
         const sets = setsOf(v);
         const work = workOf(v);
         if (!work.length) continue;
-        out.push({ d, sets, best: Math.max(...work.map((s) => s.kg || 0)), rm: Math.max(...work.map((s) => e1rm(s.kg, s.r))), vol: work.reduce((a, s) => a + (s.kg || 0) * (s.r || 0), 0) });
+        out.push({ d, sets, note: notes()[d]?.[k]?.note || '', best: Math.max(...work.map((s) => s.kg || 0)), rm: Math.max(...work.map((s) => e1rm(s.kg, s.r))), vol: work.reduce((a, s) => a + (s.kg || 0) * (s.r || 0), 0) });
       }
   return out.sort((a, b) => a.d.localeCompare(b.d));
 }

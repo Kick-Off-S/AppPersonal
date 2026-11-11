@@ -8,7 +8,7 @@ const LS_KEY = 'gestion-personal:state';
 // Versión del esquema de datos. Al cambiar la forma de los datos: subirla y agregar un paso en MIGRATIONS.
 export const VERSION = 3;
 // Versión visible de la app. Al cambiarla, quienes ya usan la app ven las novedades una vez.
-export const APP_VERSION = '4.20';
+export const APP_VERSION = '4.21';
 
 export const defaults = () => ({
   app: 'gestion-personal',
@@ -42,7 +42,8 @@ export const defaults = () => ({
   // log[fecha] = actividades extra { id, type, mins, kcal, note }
   // snap[fecha][rutina] = { total, mins, kcal } al marcar: el historial no cambia si se edita la rutina
   // sessions[fecha] = { start, end? }: cronómetro del entrenamiento (la racha cuenta los terminados)
-  exercise: { routines: [], done: {}, log: {}, snap: {}, sessions: {} },
+  // notes[fecha][ejercicio] = { note }: comentario del ejercicio que se recuerda la próxima vez
+  exercise: { routines: [], done: {}, log: {}, snap: {}, sessions: {}, notes: {} },
   // Hábitos: list { id, name, emoji, days, time? 'HH:MM' }, done[fecha][hábito] = true
   habits: { list: [], done: {} },
   // Lista de compras: { id, name, qty, done }
@@ -227,6 +228,17 @@ function normalize(o) {
           v.sets = objs(v.sets)
             .slice(0, 50)
             .map((s) => ({ r: Math.round(pos(s.r)), kg: pos(s.kg), ...(s.t ? { t: pos(s.t) } : {}), ...(['w', 'd', 'f'].includes(s.k) ? { k: s.k } : {}) }));
+  // notas por ejercicio: notes[fecha][clave] = { note }
+  ex.notes = isObj(ex.notes) ? ex.notes : {};
+  for (const [d, byEx] of Object.entries(ex.notes)) {
+    if (!isObj(byEx)) {
+      delete ex.notes[d];
+      continue;
+    }
+    for (const [k, v] of Object.entries(byEx)) if (!isObj(v) || typeof v.note !== 'string' || !v.note.trim()) delete byEx[k];
+    else byEx[k] = { note: v.note.slice(0, 300) };
+    if (!Object.keys(byEx).length) delete ex.notes[d];
+  }
   // entrenamientos: { start, end? } por día
   ex.sessions = isObj(ex.sessions) ? ex.sessions : {};
   for (const [d, x] of Object.entries(ex.sessions)) {

@@ -5,8 +5,8 @@ import { state, save } from './store.js';
 import { openSheet } from './util.js';
 import { privacySheet, PRIVACY_DATE } from './privacy.js';
 
-export const TERMS_VERSION = '1';
-export const TERMS_DATE = '30-10-2026';
+export const TERMS_VERSION = '2';
+export const TERMS_DATE = '10-11-2026';
 // Quién ofrece la app y cómo contactarlo. Mientras estén vacíos, el texto dice "quien administra la app".
 const OWNER = '';
 const CONTACT = '';
@@ -21,7 +21,8 @@ export function termsHTML() {
     <p>Gestión Personal (la "app") la ofrece ${who}. Al tocar "Acepto" y usar la app declaras haber leído y aceptado estos términos y el Aviso de privacidad. Si no estás de acuerdo, no uses la app.</p>
 
     <h4>2. Qué es la app</h4>
-    <p>Una herramienta gratuita para registrar por tu cuenta tu alimentación, peso, ejercicio, hábitos, medicamentos, gastos, ahorro y préstamos. Funciona en tu teléfono y no requiere crear una cuenta.</p>
+    <p>Una herramienta para registrar por tu cuenta tu alimentación, peso, ejercicio, hábitos, medicamentos, gastos, ahorro y préstamos. Funciona en tu teléfono y no requiere crear una cuenta.</p>
+    <p><b>Precio:</b> la app está en desarrollo y por ahora es gratuita. Más adelante podría ofrecer un plan pagado opcional con funciones extra (estilo freemium). Si eso ocurre, se avisará con anticipación dentro de la app y nunca se cobrará nada sin tu aceptación expresa.</p>
 
     <h4>3. No es consejo profesional</h4>
     <p>Las evaluaciones nutricionales, el IMC, los planes de dieta guía, las metas de peso, los cálculos de calorías, de cuotas, de intereses y los informes son <b>estimaciones con fórmulas generales</b>. No reemplazan a un médico, nutricionista, químico farmacéutico ni asesor financiero. Consulta siempre a un profesional antes de tomar decisiones de salud o de dinero. La app no es para emergencias: ante una urgencia, llama al 131 (SAMU) o acude a un servicio de urgencia.</p>

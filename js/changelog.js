@@ -6,6 +6,16 @@ import { openSheet } from './util.js';
 
 export const CHANGELOG = [
   {
+    v: '4.21',
+    date: '2026-11-10',
+    title: 'Notas en tus ejercicios',
+    items: [
+      '<b>📝 Notas por ejercicio:</b> al registrar, anota cómo te fue ("quedé con RIR 1", "podía sacar 4 reps más") o usa los atajos RIR 0, RIR 1, RIR 2, Subir peso… La próxima vez que hagas ese ejercicio, la app te lo recuerda.',
+      'Las notas también aparecen en el historial de cada ejercicio.',
+      '<b>Precio:</b> la app es gratis mientras está en desarrollo. Si más adelante hay un plan pagado opcional, se avisará antes. Por eso se actualizaron los términos y te pedimos aceptarlos de nuevo.',
+    ],
+  },
+  {
     v: '4.20',
     date: '2026-11-08',
     title: 'Perfiles y reportar problemas',
